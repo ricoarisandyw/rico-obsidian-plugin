@@ -1,0 +1,1336 @@
+/* ==========================================================================
+   Rico Obsidian Plugin — Unified Stylesheet
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Canvas Drawing Overlay & Mini-Toolbar (.rich-canvas-*)
+   -------------------------------------------------------------------------- */
+.rich-canvas-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.rich-canvas-overlay.active {
+  pointer-events: all;
+  cursor: default;
+  z-index: 1000;
+}
+
+.rich-canvas-overlay.below-nodes {
+  z-index: 0;
+}
+
+.rich-canvas-toggle-btn.active,
+.rich-canvas-toggle-btn-floating.active {
+  color: var(--interactive-accent);
+  background: var(--background-modifier-active-hover);
+}
+
+.rich-canvas-toggle-btn-floating {
+  position: absolute;
+  bottom: 60px;
+  right: 12px;
+  z-index: 1002;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.rich-canvas-toolbar {
+  display: none;
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+
+.rich-canvas-toolbar.visible {
+  display: flex;
+}
+
+.rich-canvas-tool-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text-normal);
+  transition: background 0.1s;
+  line-height: 1.4;
+  min-width: 30px;
+}
+
+.rich-canvas-tool-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.rich-canvas-tool-btn.active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.rich-canvas-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--background-modifier-border);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.rich-canvas-color {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 1px;
+  background: none;
+}
+
+.rich-canvas-size {
+  width: 52px;
+  height: 26px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  padding: 2px 4px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   2. Canvas Node Hammer Menu Popup (.roc-*)
+   -------------------------------------------------------------------------- */
+.roc-hammer-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.roc-hammer-popup {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m, 8px);
+  box-shadow: var(--shadow-s, 0 2px 8px rgba(0, 0, 0, 0.2));
+  padding: 4px;
+  min-width: 180px;
+}
+
+.roc-dropdown-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.roc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s, 4px);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small, 13px);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.roc-menu-item:hover:not(.is-disabled) {
+  background: var(--background-modifier-hover);
+}
+
+.roc-menu-item.is-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.roc-menu-item-emoji {
+  font-size: 14px;
+  line-height: 1;
+  width: 18px;
+  text-align: center;
+}
+
+.roc-menu-item-label {
+  flex: 1;
+}
+
+.roc-menu-empty {
+  padding: 8px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small, 13px);
+  text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   3. OG Link Canvas (.og-*)
+   -------------------------------------------------------------------------- */
+.og-link-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--background-primary);
+  border-radius: var(--radius-m, 6px);
+  font-family: var(--font-interface);
+  user-select: none;
+  cursor: default;
+}
+
+.og-link-image-wrap {
+  flex: 0 0 auto;
+  width: 100%;
+  overflow: hidden;
+  max-height: 130px;
+  background: var(--background-secondary);
+}
+
+.og-link-image-wrap.og-no-image {
+  display: none;
+}
+
+.og-link-image {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  display: block;
+}
+
+.og-link-body {
+  flex: 1 1 auto;
+  padding: 8px 10px 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+}
+
+.og-link-hostname {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.og-link-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.og-link-description {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.og-link-footer {
+  flex: 0 0 auto;
+  padding: 0 10px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.og-link-open-btn {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-s, 4px);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.1s;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.og-link-open-btn:hover {
+  opacity: 0.85;
+}
+
+.og-link-refresh-btn {
+  background: none;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 4px);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  line-height: 1.5;
+}
+
+.og-link-refresh-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+}
+
+.og-url-modal .og-modal-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  display: block;
+}
+
+.og-url-modal .og-modal-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-m, 6px);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: 14px;
+  box-sizing: border-box;
+  outline: none;
+  margin-bottom: 14px;
+}
+
+.og-url-modal .og-modal-input:focus {
+  border-color: var(--interactive-accent);
+}
+
+.og-url-modal .og-modal-submit {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-m, 6px);
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.1s;
+}
+
+.og-url-modal .og-modal-submit:hover {
+  opacity: 0.85;
+}
+
+.og-url-modal .og-modal-error {
+  font-size: 12px;
+  color: var(--text-error, #e63946);
+  margin-top: 6px;
+  min-height: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   4. Folder Base (.folder-base-*)
+   -------------------------------------------------------------------------- */
+.folder-base-content {
+  padding: 0;
+  overflow: auto;
+}
+
+.folder-base-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  border-bottom: 1px solid var(--background-modifier-border);
+  position: sticky;
+  top: 0;
+  background: var(--background-primary);
+  z-index: 2;
+}
+
+.folder-base-title {
+  font-weight: var(--font-semibold);
+}
+
+.folder-base-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.folder-base-spacer {
+  flex: 1;
+}
+
+.folder-base-table-wrap {
+  overflow-x: auto;
+  padding: 0 var(--size-4-3) var(--size-4-3);
+}
+
+.folder-base-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.folder-base-table th,
+.folder-base-table td {
+  border: 1px solid var(--background-modifier-border);
+  padding: var(--size-2-2) var(--size-2-3);
+  text-align: left;
+  vertical-align: top;
+  max-width: 28em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-base-header {
+  cursor: pointer;
+  user-select: none;
+  background: var(--background-secondary);
+  position: sticky;
+  top: 0;
+}
+
+.folder-base-header:hover {
+  background: var(--background-modifier-hover);
+}
+
+.folder-base-sort-indicator {
+  color: var(--text-accent);
+}
+
+.folder-base-cell {
+  cursor: text;
+}
+
+.folder-base-cell:hover {
+  background: var(--background-modifier-hover);
+}
+
+.folder-base-cell-input {
+  width: 100%;
+  border: none;
+  background: var(--background-primary);
+  font: inherit;
+  padding: 0;
+  outline: 2px solid var(--interactive-accent);
+}
+
+.folder-base-name-cell a {
+  color: var(--link-color);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.folder-base-empty,
+.folder-base-error {
+  padding: var(--size-4-6);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.folder-base-error {
+  color: var(--text-error);
+}
+
+/* --------------------------------------------------------------------------
+   6. Typing Game (.tg-*)
+   -------------------------------------------------------------------------- */
+.tg-root {
+  padding: 0 !important;
+  overflow: auto !important;
+  background: var(--background-primary);
+}
+
+.tg-wrapper {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.tg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tg-filename {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.tg-stats {
+  display: flex;
+  gap: 16px;
+}
+
+.tg-stat {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 80px;
+}
+
+.tg-stat.active {
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
+.tg-text {
+  font-family: var(--font-monospace), monospace;
+  font-size: 22px;
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  background: var(--background-secondary);
+  border-radius: 10px;
+  padding: 24px 28px;
+  word-break: break-word;
+  white-space: pre-wrap;
+  user-select: none;
+  cursor: text;
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+  min-height: 100px;
+}
+
+.tg-text:has(~ .tg-input:focus) {
+  border-color: var(--interactive-accent);
+}
+
+.tg-correct {
+  color: var(--text-normal);
+}
+
+.tg-wrong {
+  color: #fff;
+  background: #e63946;
+  border-radius: 2px;
+}
+
+.tg-cursor {
+  border-left: 2px solid var(--interactive-accent);
+  animation: tg-blink 1s step-end infinite;
+  margin-left: -1px;
+}
+
+@keyframes tg-blink {
+  0%, 100% { border-color: var(--interactive-accent); }
+  50% { border-color: transparent; }
+}
+
+.tg-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-family: var(--font-monospace), monospace;
+  font-size: 15px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  resize: none;
+  height: 80px;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.tg-input:focus {
+  border-color: var(--interactive-accent);
+}
+
+.tg-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  text-align: center;
+  margin: 0;
+}
+
+.tg-result {
+  display: none;
+  background: var(--background-secondary);
+  border-radius: 12px;
+  padding: 28px;
+  text-align: center;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.tg-result.tg-result-visible {
+  display: block;
+}
+
+.tg-result-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-normal);
+  margin-bottom: 20px;
+}
+
+.tg-result-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.tg-result-cell {
+  background: var(--background-primary);
+  border-radius: 8px;
+  padding: 14px 8px;
+}
+
+.tg-result-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--interactive-accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.tg-result-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tg-retry-btn {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.tg-retry-btn:hover {
+  opacity: 0.85;
+}
+
+.tg-progress-bar {
+  height: 4px;
+  background: var(--background-modifier-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.tg-progress-fill {
+  height: 100%;
+  background: var(--interactive-accent);
+  border-radius: 2px;
+  transition: width 0.1s;
+  width: 0%;
+}
+
+/* --------------------------------------------------------------------------
+   7. Canvas Layers (.canvas-layers-panel, .cl-*, .rich-canvas-layers-btn)
+   -------------------------------------------------------------------------- */
+.rich-canvas-layers-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.rich-canvas-layers-btn:hover {
+  transform: translateY(-2px);
+}
+
+.rich-canvas-layers-btn:active {
+  transform: translateY(0);
+}
+
+.rich-canvas-layers-btn.is-active {
+  color: var(--interactive-accent);
+  background: var(--background-modifier-active-hover);
+}
+
+.canvas-layers-panel {
+  position: fixed;
+  top: 64px;
+  right: 24px;
+  width: 280px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  z-index: 9999;
+  overflow: hidden;
+  font-size: var(--font-ui-small);
+  user-select: none;
+}
+
+.canvas-layers-panel .cl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  cursor: move;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.cl-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.cl-title-icon { display: inline-flex; }
+.cl-title .svg-icon { width: 16px; height: 16px; }
+.cl-close {
+  display: inline-flex;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 2px;
+}
+.cl-close:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+
+.cl-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.cl-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--background-secondary);
+}
+.cl-btn:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.cl-btn .svg-icon { width: 16px; height: 16px; }
+
+.cl-list {
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.cl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.cl-row:hover { background: var(--background-modifier-hover); }
+.cl-row.is-selected {
+  background: var(--background-modifier-active-hover, var(--interactive-accent));
+  color: var(--text-on-accent);
+}
+.cl-row.is-selected .cl-row-z,
+.cl-row.is-selected .cl-grip,
+.cl-row.is-selected .cl-row-icon { color: inherit; opacity: 0.85; }
+
+.cl-grip {
+  display: inline-flex;
+  color: var(--text-faint);
+  cursor: grab;
+}
+.cl-grip .svg-icon { width: 14px; height: 14px; }
+.cl-row-icon { display: inline-flex; color: var(--text-muted); }
+.cl-row-icon .svg-icon { width: 15px; height: 15px; }
+
+.cl-row-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cl-row-z {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.cl-row.cl-dragging { opacity: 0.4; }
+.cl-row.cl-drop-above { box-shadow: inset 0 2px 0 0 var(--interactive-accent); }
+.cl-row.cl-drop-below { box-shadow: inset 0 -2px 0 0 var(--interactive-accent); }
+
+.cl-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+/* --- drawings integration --- */
+.cl-bar-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--background-modifier-border);
+  margin: 2px 2px;
+  flex: 0 0 auto;
+}
+.cl-draw-toggle.is-active {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+.cl-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.cl-section-tag {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.cl-row-draw .cl-row-icon { color: var(--interactive-accent); }
+.cl-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.cl-row-draw:hover .cl-row-actions,
+.cl-row-draw.is-selected .cl-row-actions { opacity: 1; }
+.cl-mini {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.cl-mini:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.cl-mini-danger:hover { color: var(--text-error); }
+.cl-mini .svg-icon { width: 14px; height: 14px; }
+
+/* --------------------------------------------------------------------------
+   8. Canvas Icon Drop (.rico-icon-drop-btn, .rico-icon-picker-*)
+   -------------------------------------------------------------------------- */
+.rico-icon-drop-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.rico-icon-drop-btn:hover { transform: translateY(-2px); }
+.rico-icon-drop-btn:active { cursor: grabbing; transform: translateY(0); }
+
+.rico-icon-picker-modal h3 {
+  margin: 0 0 10px;
+}
+
+.rico-icon-picker-search {
+  width: 100%;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.rico-icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.rico-icon-picker-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.rico-icon-picker-cell:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.rico-icon-picker-cell svg {
+  width: 20px;
+  height: 20px;
+}
+
+.rico-icon-picker-empty {
+  grid-column: 1 / -1;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+
+/* --------------------------------------------------------------------------
+   9. Floating Table of Contents (.rico-toc-*)
+   -------------------------------------------------------------------------- */
+.rico-toc-host {
+  position: relative;
+}
+
+.rico-toc-panel {
+  position: absolute;
+  top: 44px;
+  right: 12px;
+  z-index: 20;
+  max-width: 240px;
+  max-height: min(70vh, 480px);
+  display: flex;
+  flex-direction: column;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-s);
+  font-size: var(--font-ui-smaller);
+  overflow: hidden;
+}
+
+.rico-toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.rico-toc-panel.rico-toc-collapsed .rico-toc-header {
+  border-bottom: none;
+}
+
+.rico-toc-title {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: var(--font-ui-smallest);
+}
+
+.rico-toc-toggle {
+  color: var(--text-faint);
+}
+
+.rico-toc-list {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.rico-toc-panel.rico-toc-collapsed .rico-toc-list {
+  display: none;
+}
+
+.rico-toc-item {
+  display: flex;
+  align-items: center;
+  padding: 3px 10px 3px 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-left: 2px solid transparent;
+}
+
+.rico-toc-item:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.rico-toc-item-active {
+  color: var(--text-accent);
+  border-left-color: var(--text-accent);
+  background: var(--background-modifier-hover);
+}
+
+.rico-toc-level-1 { font-weight: 600; }
+
+.rico-toc-label {
+  padding-left: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Vertical indent-guide lines, like a code editor, for each ancestor level */
+.rico-toc-guide {
+  flex: none;
+  align-self: stretch;
+  width: 10px;
+  position: relative;
+}
+
+.rico-toc-guide::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 1px;
+  background: var(--background-modifier-border);
+}
+
+/* --------------------------------------------------------------------------
+   10. Settings page (.rico-settings-*)
+   -------------------------------------------------------------------------- */
+.rico-settings-textarea {
+  width: 100%;
+  min-width: 260px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+}
+
+/* --------------------------------------------------------------------------
+   11. Code editor view (.rico-code-editor)
+   -------------------------------------------------------------------------- */
+.view-content.rico-code-editor {
+  padding: 0;
+  overflow: hidden;
+}
+
+.view-content.rico-code-editor .cm-editor {
+  height: 100%;
+}
+
+/* The vault snippet forces a serif font on every .cm-scroller; code needs monospace. */
+.view-content.rico-code-editor .cm-scroller {
+  font-family: var(--font-monospace-theme, var(--font-monospace)) !important;
+}
+
+/* --------------------------------------------------------------------------
+   12. New file prompt (.rico-new-file)
+   -------------------------------------------------------------------------- */
+.rico-new-file-hint {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.rico-new-file-input {
+  width: 100%;
+}
+
+.rico-new-file-error {
+  min-height: 1.4em;
+  margin-top: 6px;
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+}
+
+
+/* --------------------------------------------------------------------------
+   10. Block reference panels (.rico-blockrefs-*)
+   -------------------------------------------------------------------------- */
+.rico-blockrefs {
+  padding: 8px 10px 16px;
+  font-size: var(--font-ui-small);
+}
+
+.rico-blockrefs-title {
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.rico-blockrefs-stats {
+  margin: 2px 0 10px;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.rico-blockrefs-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.rico-blockrefs-search {
+  width: 100%;
+}
+
+.rico-blockrefs-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.rico-blockrefs-section {
+  margin: 14px 0 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.rico-blockrefs-row {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.rico-blockrefs-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.rico-blockrefs-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rico-blockrefs-id {
+  color: var(--text-accent);
+  font-size: var(--font-ui-smaller);
+  word-break: break-all;
+}
+
+.rico-blockrefs-count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.rico-blockrefs-unused {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.rico-blockrefs-copy {
+  flex: none;
+}
+
+.rico-blockrefs-snippet {
+  margin-top: 4px;
+  color: var(--text-normal);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rico-blockrefs-cited {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.rico-blockrefs-chip {
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-decoration: none;
+}
+
+.rico-blockrefs-chip:hover {
+  color: var(--text-accent);
+}
+
+.rico-blockrefs-broken {
+  border-color: var(--text-error);
+}
+
+.rico-blockrefs-broken .rico-blockrefs-id {
+  color: var(--text-error);
+}
+
+.rico-blockrefs-empty {
+  padding: 16px 4px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+
+/* --------------------------------------------------------------------------
+   10. Canvas Outline (.rico-outline-*)
+   -------------------------------------------------------------------------- */
+.rico-outline {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rico-outline-header {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.rico-outline-meta {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rico-outline-search {
+  width: 100%;
+}
+
+.rico-outline-list {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.rico-outline-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0 10px 0 4px;
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+}
+
+.rico-outline-block:hover {
+  background: var(--background-modifier-hover);
+}
+
+.rico-outline-title {
+  cursor: default;
+}
+
+.rico-outline-title:hover {
+  background: none;
+}
+
+.rico-outline-twisty {
+  flex: none;
+  width: 16px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+}
+
+.rico-outline-twisty .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.rico-outline-body {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+
+/* Rendered markdown: compact, no editing affordances. */
+.rico-outline-content > :first-child {
+  margin-top: 0;
+}
+
+.rico-outline-content > :last-child {
+  margin-bottom: 0;
+}
+
+.rico-outline-body p,
+.rico-outline-body ul,
+.rico-outline-body ol,
+.rico-outline-body pre {
+  margin: 2px 0;
+}
+
+.rico-outline-body :is(h1, h2, h3, h4, h5, h6) {
+  margin: 6px 0 2px;
+}
+
+.rico-outline-relation {
+  color: var(--link-color);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.rico-outline-relation:hover {
+  color: var(--link-color-hover);
+  text-decoration: underline;
+}
+
+.rico-outline-body hr {
+  margin: 8px 0 2px;
+}
+
+.rico-outline-body input[type="checkbox"] {
+  pointer-events: none;
+}
+
+.rico-outline-group {
+  margin-top: 4px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.rico-outline-empty {
+  padding: 16px 10px;
+  color: var(--text-faint);
+  text-align: center;
+}

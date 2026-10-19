@@ -1,0 +1,10 @@
+{
+  "id": "rico-obsidian-plugin",
+  "name": "Rico Obsidian Plugin",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "All-in-one suite: Canvas tools (drawing overlay, hammer menu, OG link cards, layers panel), database views (.fbase), and Typing Game.",
+  "author": "ricoarisandyw",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}
