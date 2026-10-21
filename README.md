@@ -14,12 +14,14 @@ Each one can be switched on or off individually under **Settings → Rico Obsidi
 
 | Feature | What it does |
 | --- | --- |
-| Freehand Drawing | Draw on a canvas with a pen overlay, above or below the nodes. |
+| Freehand Drawing | Pen, line, arrow, rectangle, ellipse and eraser on a canvas overlay, above or below the nodes. |
 | Hammer Popup Menu | A radial-style popup menu for quick canvas actions. |
 | OG Link Cards | Renders link nodes as preview cards with title, description and image. |
 | Layers Panel | Group canvas nodes into layers and toggle their visibility. |
 | Icon Drop | Drag icons onto the canvas. |
 | Canvas Outline | A sidebar outline of the current canvas. |
+| Canvas Network Graph | Shows the current canvas as a force-directed network graph in the right sidebar. Circle size grows with the number of connections, colour follows the node type, and clicking a circle zooms the canvas to that card. Read-only. |
+| Note to Canvas | Turns a markdown note into a canvas, one card per heading, with arrows from each heading to its sub-headings. Run it from the command palette, the editor right-click menu, or by right-clicking the note in the file explorer. Re-running updates the canvas and keeps any cards you moved by hand. |
 
 ### Tabs
 

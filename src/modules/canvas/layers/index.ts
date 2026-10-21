@@ -1,4 +1,10 @@
-import { Notice, setIcon, setTooltip } from "obsidian";
+import { Notice, setIcon } from "obsidian";
+import {
+  registerRailButton,
+  setRailButtonActive,
+  syncRail,
+  unregisterRailButton,
+} from "../tool-rail";
 import type RicoObsidianPlugin from "../../../main";
 
 /* ------------------------------------------------------------------ *
@@ -118,7 +124,6 @@ export class CanvasLayersManager {
   private panel: { el: HTMLElement; header: HTMLElement; list: HTMLElement } | null = null;
   private pollTimer: number | null = null;
   private lastSig = "";
-  private selFrameId: string | null = null;
   private _pos: { left: string; top: string } | null = null;
   private drawBtn: HTMLElement | null = null;
   private menuObserver: MutationObserver | null = null;
@@ -183,59 +188,34 @@ export class CanvasLayersManager {
       this.menuObserver.disconnect();
       this.menuObserver = null;
     }
-    document.querySelectorAll(".rich-canvas-layers-btn").forEach((el) => el.remove());
+    unregisterRailButton("layers");
     this.closePanel();
   }
 
   syncButtons(): void {
-    const leaves = this.plugin.app.workspace.getLeavesOfType("canvas");
-    for (const leaf of leaves) {
+    // The rail owns ordering, so this only has to register once and then make
+    // sure every open canvas has a rail built.
+    registerRailButton({
+      id: "layers",
+      icon: "layers",
+      label: "Canvas Layers",
+      order: 10,
+      className: "rich-canvas-layers-btn",
+      onClick: () => this.togglePanel(),
+    });
+
+    for (const leaf of this.plugin.app.workspace.getLeavesOfType("canvas")) {
       const view = leaf.view as any;
-      if (!view) continue;
-      const canvas = view.canvas;
-      const cardMenu: HTMLElement | null =
-        canvas?.cardMenuEl ||
-        view.containerEl?.querySelector(".canvas-card-menu");
-      if (!cardMenu) continue;
-
-      let btn = cardMenu.querySelector<HTMLElement>(".rich-canvas-layers-btn");
-
-      // Locate "Drag to add group" button in the canvas card creation menu
-      const groupBtn =
-        cardMenu.querySelector("#create-group") ||
-        cardMenu.querySelector('.canvas-card-menu-button[aria-label*="group" i]') ||
-        cardMenu.querySelector('.canvas-card-menu-button[data-tooltip*="group" i]') ||
-        cardMenu.querySelector('.canvas-card-menu-button .svg-icon[data-icon="group"]')?.closest(".canvas-card-menu-button");
-
-      if (!btn) {
-        btn = document.createElement("div");
-        btn.className = "canvas-card-menu-button clickable-icon rich-canvas-layers-btn";
-        btn.setAttribute("aria-label", "Canvas Layers");
-        setIcon(btn, "layers");
-        setTooltip(btn, "Canvas Layers", { placement: "top" });
-        btn.addEventListener("click", (e: MouseEvent) => {
-          e.stopPropagation();
-          this.togglePanel();
-        });
-
-        if (groupBtn) {
-          groupBtn.insertAdjacentElement("afterend", btn);
-        } else {
-          cardMenu.appendChild(btn);
-        }
-      } else if (groupBtn && btn.previousElementSibling !== groupBtn) {
-        groupBtn.insertAdjacentElement("afterend", btn);
-      }
-
-      btn.classList.toggle("is-active", !!this.panel);
+      const wrapper: HTMLElement | null =
+        view?.containerEl?.querySelector(".canvas-wrapper") ?? view?.containerEl ?? null;
+      if (wrapper) syncRail(wrapper);
     }
+
+    this.updateButtonStates();
   }
 
   private updateButtonStates(): void {
-    const active = !!this.panel;
-    document.querySelectorAll(".rich-canvas-layers-btn").forEach((btn) => {
-      btn.classList.toggle("is-active", active);
-    });
+    setRailButtonActive("layers", !!this.panel);
   }
 
   private getActiveCanvas(): any {
@@ -307,17 +287,6 @@ export class CanvasLayersManager {
   }
 
   applyOp(fn: OrderOp): void {
-    const overlay = this.getDrawOverlay();
-    if (this.selFrameId && overlay) {
-      const order = overlay.apiGetFrameOrder();
-      if (order.includes(this.selFrameId)) {
-        overlay.apiSetFrameOrder(fn(order, new Set([this.selFrameId])));
-        this.refresh(true);
-        return;
-      }
-      this.selFrameId = null;
-    }
-
     const canvas = this.getActiveCanvas();
     if (!canvas) {
       new Notice("No active canvas");
@@ -325,7 +294,7 @@ export class CanvasLayersManager {
     }
     const sel = this.selectedIds(canvas);
     if (sel.size === 0) {
-      new Notice("Select a node or drawing frame first");
+      new Notice("Select a node first");
       return;
     }
     const order = canvas.getData().nodes.map((n: any) => n.id);
@@ -461,15 +430,7 @@ export class CanvasLayersManager {
     const file = canvas.view && canvas.view.file ? canvas.view.file.path : "";
     let draw = "";
     const ov = this.getDrawOverlay();
-    if (ov) {
-      draw =
-        ov
-          .apiListFrames()
-          .map((f: any) => f.id + ":" + f.strokeCount + (f.selected ? "*" : ""))
-          .join(",") +
-        "|" +
-        ov.apiGetBelowNodes();
-    }
+    if (ov) draw = ov.apiShapeCount() + "|" + ov.apiGetBelowNodes();
     return file + "|" + ids + "|" + draw + "||" + sel;
   }
 
@@ -503,56 +464,31 @@ export class CanvasLayersManager {
     if (overlay) {
       const below = overlay.apiGetBelowNodes();
       if (this.drawBtn) this.drawBtn.toggleClass("is-active", below);
-      const frames = overlay.apiListFrames();
-      if (frames.length) {
+      const count = overlay.apiShapeCount();
+      if (count) {
         const sec = list.createDiv({ cls: "cl-section" });
         sec.createSpan({ text: "Drawings" });
         sec.createSpan({ cls: "cl-section-tag", text: below ? "below nodes" : "above nodes" });
 
-        frames.forEach((f: any) => {
-          const row = list.createDiv({ cls: "cl-row cl-row-draw", attr: { "data-fid": f.id } });
-          if (f.selected) row.addClass("is-selected");
-
-          const ic = row.createDiv({ cls: "cl-row-icon" });
-          setIcon(ic, "pen-line");
-          row.createDiv({
-            cls: "cl-row-label",
-            text: f.label + (f.strokeCount ? " · " + f.strokeCount : ""),
-          });
-
-          const actions = row.createDiv({ cls: "cl-row-actions" });
-          const up = actions.createDiv({ cls: "cl-mini", attr: { "aria-label": "Move forward" } });
-          setIcon(up, "chevron-up");
-          const dn = actions.createDiv({ cls: "cl-mini", attr: { "aria-label": "Move backward" } });
-          setIcon(dn, "chevron-down");
-          const del = actions.createDiv({
-            cls: "cl-mini cl-mini-danger",
-            attr: { "aria-label": "Delete frame" },
-          });
-          setIcon(del, "trash-2");
-
-          up.onclick = (e) => {
-            e.stopPropagation();
-            overlay.apiMoveFrame(f.id, -1);
-            this.refresh(true);
-          };
-          dn.onclick = (e) => {
-            e.stopPropagation();
-            overlay.apiMoveFrame(f.id, +1);
-            this.refresh(true);
-          };
-          del.onclick = (e) => {
-            e.stopPropagation();
-            if (this.selFrameId === f.id) this.selFrameId = null;
-            overlay.apiDeleteFrame(f.id);
-            this.refresh(true);
-          };
-          row.addEventListener("click", () => {
-            this.selFrameId = f.id;
-            overlay.apiFocusFrame(f.id);
-            this.refresh(true);
-          });
+        const row = list.createDiv({ cls: "cl-row cl-row-draw" });
+        const ic = row.createDiv({ cls: "cl-row-icon" });
+        setIcon(ic, "pen-line");
+        row.createDiv({
+          cls: "cl-row-label",
+          text: count + (count === 1 ? " stroke" : " strokes"),
         });
+
+        const actions = row.createDiv({ cls: "cl-row-actions" });
+        const del = actions.createDiv({
+          cls: "cl-mini cl-mini-danger",
+          attr: { "aria-label": "Clear all drawings" },
+        });
+        setIcon(del, "trash-2");
+        del.onclick = (e) => {
+          e.stopPropagation();
+          overlay.apiClearShapes();
+          this.refresh(true);
+        };
 
         list.createDiv({ cls: "cl-section", text: "Nodes" });
       }
@@ -578,8 +514,6 @@ export class CanvasLayersManager {
 
       row.addEventListener("mousedown", (e: MouseEvent) => {
         if (e.button !== 0) return;
-        this.selFrameId = null;
-        if (overlay) overlay.apiClearFrameSelection();
         const cur = this.selectedIds(canvas);
         let next: Set<string>;
         if (e.ctrlKey || e.metaKey || e.shiftKey) {

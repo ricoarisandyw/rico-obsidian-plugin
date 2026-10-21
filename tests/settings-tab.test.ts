@@ -6,7 +6,10 @@ import { DEFAULT_SETTINGS, DEFAULT_VISIBILITY_RULES } from "../src/types";
 function build() {
   let saves = 0;
   let applied = 0;
+  const app = new App() as any;
   const plugin: any = {
+    // The semantic-search model manager reads plugin.app.vault on render.
+    app,
     settings: { ...DEFAULT_SETTINGS },
     savePluginSettings: async () => { saves++; },
     applyVisibilityRules: async () => { applied++; },
@@ -16,7 +19,7 @@ function build() {
     enableTocManager: () => {},
     disableTocManager: () => {},
   };
-  const tab = new RicoSettingTab(new App() as any, plugin);
+  const tab = new RicoSettingTab(app, plugin);
   tab.display();
   const records: MockSettingRecord[] = Setting.registry.get(tab.containerEl) ?? [];
   return { plugin, tab, records, counts: () => ({ saves, applied }) };
@@ -26,9 +29,15 @@ describe("Rico settings tab", () => {
   let ctx: ReturnType<typeof build>;
   beforeEach(() => { ctx = build(); });
 
-  it("groups settings under 4 headings in order", () => {
+  it("groups settings under headings in order", () => {
     const headings = ctx.records.filter((r) => r.heading).map((r) => r.name);
-    expect(headings).toEqual(["Canvas", "Database", "Files & Explorer", "Tools & Extras"]);
+    expect(headings.slice(0, 4)).toEqual([
+      "Canvas",
+      "Database",
+      "Files & Explorer",
+      "Tools & Extras",
+    ]);
+    expect(headings).toContain("Quiz");
   });
 
   it("has no FlexView setting", () => {
@@ -44,7 +53,7 @@ describe("Rico settings tab", () => {
       byGroup[group].push(r.name);
       names.push(r.name);
     }
-    expect(byGroup["Canvas"]).toHaveLength(6);
+    expect(byGroup["Canvas"].length).toBeGreaterThanOrEqual(6);
     expect(byGroup["Canvas"]).toContain("Canvas Outline");
     expect(byGroup["Database"]).toEqual(["Folder Base"]);
     expect(byGroup["Files & Explorer"]).toEqual(
@@ -53,6 +62,32 @@ describe("Rico settings tab", () => {
     expect(byGroup["Tools & Extras"]).toEqual(
       expect.arrayContaining(["Run in Terminal", "Typing Game", "Floating Table of Contents"])
     );
+    expect(byGroup["Quiz"]).toEqual(
+      expect.arrayContaining([
+        "Quiz builder",
+        "Quiz folder name",
+        "Seconds per question",
+        "Skip questions marked irrelevant",
+      ])
+    );
+  });
+
+  it("saves the quiz folder name, falling back to the default when blanked", async () => {
+    const folder = ctx.records.find((r) => r.name === "Quiz folder name")!;
+    await folder.texts[0].onChange!("Questions");
+    expect(ctx.plugin.settings.quizFolderName).toBe("Questions");
+    await folder.texts[0].onChange!("   ");
+    expect(ctx.plugin.settings.quizFolderName).toBe("DB Quiz");
+  });
+
+  it("keeps the question timer positive", async () => {
+    const seconds = ctx.records.find((r) => r.name === "Seconds per question")!;
+    await seconds.texts[0].onChange!("45");
+    expect(ctx.plugin.settings.quizQuestionSeconds).toBe(45);
+    await seconds.texts[0].onChange!("abc");
+    expect(ctx.plugin.settings.quizQuestionSeconds).toBe(30);
+    await seconds.texts[0].onChange!("0");
+    expect(ctx.plugin.settings.quizQuestionSeconds).toBe(30);
   });
 
   it("saves a toggle change", async () => {

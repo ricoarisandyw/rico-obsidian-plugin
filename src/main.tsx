@@ -17,8 +17,12 @@ import { OgLinkCanvasManager } from "./modules/canvas/og-link";
 import { CanvasLayersManager } from "./modules/canvas/layers";
 import { CanvasIconDropManager } from "./modules/canvas/icon-drop";
 import { registerCanvasOutline } from "./modules/canvas/outline";
+import { registerCanvasNetworkGraph } from "./modules/canvas/network-graph";
+import { registerNoteToCanvas } from "./modules/canvas/note-to-canvas";
+import { registerCanvasRoadmapNode } from "./modules/canvas/roadmap-node";
 import { registerFolderBase } from "./modules/folder-base";
 import { registerTypingGame } from "./modules/typing-game";
+import { registerQuiz } from "./modules/quiz";
 import { registerRunInTerminal } from "./modules/run-in-terminal";
 import { registerCodeEditor } from "./modules/code-editor";
 import { registerNewFile } from "./modules/new-file";
@@ -29,6 +33,9 @@ import { TocManager } from "./modules/toc";
 import { registerAutoPin } from "./modules/auto-pin";
 import { registerBlockReference } from "./modules/block-reference";
 import { registerBlockReferencePanels } from "./modules/block-reference/panels";
+import { registerSemanticSearch } from "./modules/semantic-search";
+import { registerMermaidLinks } from "./modules/mermaid-links";
+import { removeAllRails } from "./modules/canvas/tool-rail";
 import { DEFAULT_SETTINGS, normalizeSettings, RicoPluginSettings } from "./types";
 import { RicoSettingTab } from "./settings/settings-tab";
 
@@ -127,6 +134,19 @@ export default class RicoObsidianPlugin extends Plugin {
       registerCanvasOutline(this);
     }
 
+    // 4d. Canvas Network Graph Module (read-only graph view in the right sidebar)
+    if (this.settings.enableCanvasNetworkGraph) {
+      registerCanvasNetworkGraph(this);
+    }
+
+    // 4d2. Roadmap Node Module (roadmap.sh-style cards: title, status, article)
+    // Always registered; the handlers check the setting, so the toggle applies instantly.
+    registerCanvasRoadmapNode(this);
+
+    // 4e. Note to Canvas Module (markdown headings become canvas cards)
+    // Always registered; the handlers check the setting, so the toggle applies instantly.
+    registerNoteToCanvas(this);
+
     // 5. Folder Base Module
     if (this.settings.enableFolderBase) {
       registerFolderBase(this);
@@ -135,6 +155,11 @@ export default class RicoObsidianPlugin extends Plugin {
     // 6. Typing Game Module
     if (this.settings.enableTypingGame) {
       registerTypingGame(this);
+    }
+
+    // 6b. Quiz Builder Module
+    if (this.settings.enableQuiz) {
+      registerQuiz(this);
     }
 
     // 7. Run in Terminal Module
@@ -183,9 +208,22 @@ export default class RicoObsidianPlugin extends Plugin {
     registerBlockReference(this);
 
     // 12b. Block Reference panels (right sidebar: this note, left sidebar: whole vault)
+    if (this.settings.enableSemanticSearch) {
+      // Never let one module's failure abort onload and take the rest of the
+      // plugin (ribbon icons, settings tab) down with it.
+      try {
+        registerSemanticSearch(this);
+      } catch (err) {
+        console.error(">>> semantic-search: failed to register", err);
+      }
+    }
     if (this.settings.enableBlockReferencePanels) {
       registerBlockReferencePanels(this);
     }
+
+    // 13. Mermaid Links (wikilinks in diagrams -> clickable + graph view).
+    // Always registered; the handlers check the setting.
+    registerMermaidLinks(this);
 
     // Settings tab
     this.addSettingTab(new RicoSettingTab(this.app, this));
@@ -282,6 +320,8 @@ export default class RicoObsidianPlugin extends Plugin {
 
     closeHammerPopup();
     removeAllHammerButtons();
+    // Individual unregisters leave the (now empty) rail container behind.
+    removeAllRails();
     this.menuObserver?.disconnect();
     this.menuObserver = null;
 

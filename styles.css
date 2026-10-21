@@ -69,20 +69,29 @@
 }
 
 .rich-canvas-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 4px 8px;
   cursor: pointer;
-  font-size: 15px;
-  color: var(--text-normal);
-  transition: background 0.1s;
-  line-height: 1.4;
-  min-width: 30px;
+  color: var(--text-muted);
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.rich-canvas-tool-btn .svg-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .rich-canvas-tool-btn:hover {
   background: var(--background-modifier-hover);
+  color: var(--text-normal);
 }
 
 .rich-canvas-tool-btn.active {
@@ -1334,3 +1343,1421 @@
   color: var(--text-faint);
   text-align: center;
 }
+
+
+/* --------------------------------------------------------------------------
+   11. Canvas Network Graph (.rico-netgraph-*)
+   -------------------------------------------------------------------------- */
+.rico-netgraph {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.rico-netgraph-header {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex: 0 0 auto;
+}
+
+.rico-netgraph-toprow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rico-netgraph-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rico-netgraph-fit {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.rico-netgraph-fit:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.rico-netgraph-search {
+  width: 100%;
+}
+
+.rico-netgraph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.rico-netgraph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rico-netgraph-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rico-netgraph-color);
+}
+
+/* The stage fills the rest of the panel; the tooltip is positioned against it. */
+.rico-netgraph-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rico-netgraph-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+.rico-netgraph-svg:active {
+  cursor: grabbing;
+}
+
+/* ---- Node colours by type ---- */
+.rico-netgraph-type-file {
+  --rico-netgraph-color: var(--color-blue);
+}
+
+.rico-netgraph-type-text {
+  --rico-netgraph-color: var(--color-green);
+}
+
+.rico-netgraph-type-link {
+  --rico-netgraph-color: var(--color-purple);
+}
+
+.rico-netgraph-type-group {
+  --rico-netgraph-color: var(--color-orange);
+}
+
+.rico-netgraph-type-other {
+  --rico-netgraph-color: var(--text-faint);
+}
+
+/* ---- Links ---- */
+.rico-netgraph-link {
+  stroke: var(--text-faint);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.55;
+  transition: opacity 120ms ease, stroke 120ms ease;
+}
+
+.rico-netgraph-link.is-active {
+  stroke: var(--text-accent);
+  stroke-width: 1.8;
+  opacity: 1;
+}
+
+.rico-netgraph-link.is-dimmed {
+  opacity: 0.12;
+}
+
+/* ---- Nodes ---- */
+.rico-netgraph-node {
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.rico-netgraph-node circle {
+  fill: var(--rico-netgraph-color);
+  stroke: var(--background-primary);
+  stroke-width: 1.5;
+  transition: stroke 120ms ease, stroke-width 120ms ease;
+}
+
+.rico-netgraph-node.is-active circle {
+  stroke: var(--text-accent);
+  stroke-width: 2.5;
+}
+
+.rico-netgraph-node.is-dimmed {
+  opacity: 0.15;
+}
+
+.rico-netgraph-label {
+  fill: var(--text-muted);
+  font-size: 9px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.rico-netgraph-node.is-active .rico-netgraph-label {
+  fill: var(--text-normal);
+}
+
+/* ---- Overlays ---- */
+.rico-netgraph-tooltip {
+  position: absolute;
+  z-index: 2;
+  display: none;
+  max-width: 220px;
+  padding: 4px 8px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: var(--shadow-s);
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rico-netgraph-tooltip.is-visible {
+  display: block;
+}
+
+.rico-netgraph-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 10px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* ---- Note to Canvas: overwrite confirmation ---- */
+.rico-n2c-confirm p {
+  margin: 0 0 1em;
+  color: var(--text-muted);
+}
+
+.rico-n2c-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---- Semantic search (related notes) ---- */
+.rico-semantic-search {
+  padding: 0 8px 8px;
+}
+.rico-ss-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+.rico-ss-title {
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+.rico-ss-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.rico-ss-icon-btn:hover {
+  color: var(--text-normal);
+}
+.rico-ss-status {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.rico-ss-status p {
+  margin: 4px 0 8px;
+}
+.rico-ss-action {
+  width: 100%;
+}
+.rico-ss-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+.rico-ss-item:hover {
+  background: var(--background-modifier-hover);
+}
+.rico-ss-item-main {
+  flex: 1;
+  min-width: 0;
+}
+.rico-ss-item-name {
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rico-ss-item-path {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rico-ss-item-score {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Semantic search: model manager ---- */
+.rico-ss-models {
+  margin: 8px 0 16px;
+}
+.rico-ss-models-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.rico-ss-models-title {
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+.rico-ss-model {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--background-primary);
+}
+.rico-ss-model.is-selected {
+  border-color: var(--interactive-accent);
+}
+.rico-ss-model-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.rico-ss-model-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.rico-ss-model-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-normal);
+  font-weight: var(--font-medium);
+}
+.rico-ss-chip {
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-model-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-model-langs {
+  color: var(--text-faint);
+}
+.rico-ss-badge {
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-badge.is-ready {
+  background: var(--background-modifier-success);
+  color: var(--text-success);
+}
+.rico-ss-badge.is-partial {
+  background: var(--background-modifier-border);
+  color: var(--text-warning);
+}
+.rico-ss-badge.is-missing {
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+.rico-ss-model-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.rico-ss-model-hint {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-progress {
+  margin-top: 8px;
+}
+.rico-ss-progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+.rico-ss-progress-fill {
+  height: 100%;
+  background: var(--interactive-accent);
+  transition: width 120ms linear;
+}
+.rico-ss-progress-text {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-model-files {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.rico-ss-model-folder {
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+.rico-ss-model-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-file-icon {
+  display: flex;
+}
+.rico-ss-file-icon.is-present {
+  color: var(--text-success);
+}
+.rico-ss-file-icon.is-absent {
+  color: var(--text-faint);
+}
+.rico-ss-file-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rico-ss-file-size {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Semantic search: search box ---- */
+.rico-ss-searchbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-primary);
+}
+.rico-ss-searchbox:focus-within {
+  border-color: var(--interactive-accent);
+}
+.rico-ss-search-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+.rico-ss-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 2px 0;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+.rico-ss-input:focus {
+  box-shadow: none;
+  outline: none;
+}
+.rico-ss-clear.is-hidden {
+  display: none;
+}
+.rico-ss-context {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 6px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-context-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rico-ss-context-count {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Roadmap Node (canvas cards: title, status, linked article) ---- */
+
+.rico-roadmap-node .canvas-node-content {
+  padding: 0;
+  overflow: visible;
+}
+
+.rico-roadmap-card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 12px 32px 12px 14px;
+  border: 2px solid var(--background-modifier-border);
+  border-radius: 10px;
+  background: var(--background-primary);
+  font-family: var(--font-interface);
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.rico-roadmap-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+/* Status dot and title share one row */
+.rico-roadmap-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rico-roadmap-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--h4-size, 1.125em);
+  font-weight: var(--h4-weight, 600);
+  line-height: 1.3;
+  color: var(--text-normal);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.rico-roadmap-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Indent past the status dot so it lines up with the title. */
+  padding-left: 30px;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.rico-roadmap-article {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rico-roadmap-article-icon {
+  display: inline-flex;
+}
+
+.rico-roadmap-article-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rico-roadmap-linkcount {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+/* Edit button, alone in the top-right corner */
+.rico-roadmap-edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  box-shadow: none;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.rico-roadmap-edit svg {
+  width: 13px;
+  height: 13px;
+}
+
+.rico-roadmap-card:hover .rico-roadmap-edit,
+.rico-roadmap-edit:focus-visible {
+  opacity: 1;
+}
+
+.rico-roadmap-edit:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.rico-roadmap-edit:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+
+/* Status dot, inline to the left of the title */
+.rico-roadmap-dot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  /* Nudge onto the title's optical centre. */
+  margin-top: 1px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--background-modifier-border);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.rico-roadmap-dot svg {
+  width: 14px;
+  height: 14px;
+}
+
+.rico-roadmap-dot:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* Status colours, shared by the card, the dot and the buttons */
+.rico-roadmap-card.is-none {
+  border-color: var(--background-modifier-border);
+}
+.rico-roadmap-dot.is-none {
+  background: var(--background-modifier-border);
+  color: var(--text-faint);
+}
+
+.rico-roadmap-card.is-learning {
+  border-color: var(--color-purple);
+  background: color-mix(in srgb, var(--color-purple) 10%, var(--background-primary));
+}
+.rico-roadmap-dot.is-learning {
+  background: var(--color-purple);
+  color: #fff;
+}
+
+.rico-roadmap-card.is-done {
+  border-color: var(--color-green);
+  background: color-mix(in srgb, var(--color-green) 12%, var(--background-primary));
+}
+.rico-roadmap-dot.is-done {
+  background: var(--color-green);
+  color: #fff;
+}
+
+.rico-roadmap-card.is-skip {
+  border-color: var(--background-modifier-border);
+  opacity: 0.55;
+}
+.rico-roadmap-card.is-skip .rico-roadmap-title {
+  text-decoration: line-through;
+}
+.rico-roadmap-dot.is-skip {
+  background: var(--text-faint);
+  color: var(--background-primary);
+}
+
+/* ---- Roadmap status buttons (modal + panel) ---- */
+
+.rico-roadmap-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.rico-roadmap-status-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.rico-roadmap-status-btn:hover {
+  color: var(--text-normal);
+}
+
+.rico-roadmap-status-btn.is-active.is-learning {
+  border-color: var(--color-purple);
+  color: var(--color-purple);
+  background: color-mix(in srgb, var(--color-purple) 12%, var(--background-primary));
+}
+.rico-roadmap-status-btn.is-active.is-done {
+  border-color: var(--color-green);
+  color: var(--color-green);
+  background: color-mix(in srgb, var(--color-green) 12%, var(--background-primary));
+}
+.rico-roadmap-status-btn.is-active.is-skip,
+.rico-roadmap-status-btn.is-active.is-none {
+  border-color: var(--text-muted);
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* ---- Roadmap modal ---- */
+
+.rico-roadmap-modal-label {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rico-roadmap-modal-input {
+  width: 100%;
+}
+
+.rico-roadmap-modal-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rico-roadmap-modal-article {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rico-roadmap-modal-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--text-normal);
+}
+
+.rico-roadmap-modal-path.is-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.rico-roadmap-modal-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rico-roadmap-modal-link {
+  display: flex;
+  gap: 6px;
+}
+
+.rico-roadmap-modal-link input {
+  flex: 1;
+  min-width: 0;
+}
+
+.rico-roadmap-modal-addlink {
+  align-self: flex-start;
+  font-size: 12px;
+}
+
+.rico-roadmap-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* ---- Roadmap article panel ---- */
+
+.rico-roadmap-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+}
+
+.rico-roadmap-panel-header {
+  flex-shrink: 0;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.rico-roadmap-panel-title {
+  margin: 0 0 10px;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.rico-roadmap-panel-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rico-roadmap-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 32px;
+}
+
+.rico-roadmap-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.rico-roadmap-panel-path {
+  font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rico-roadmap-panel-empty {
+  padding: 24px 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.rico-roadmap-panel-links {
+  margin-top: 22px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.rico-roadmap-panel-links h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.rico-roadmap-panel-link {
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+/* Drag-to-add button in the canvas card menu (beside Canvas Layers) */
+.rico-roadmap-card-menu-btn {
+  cursor: grab;
+}
+
+.rico-roadmap-card-menu-btn:active {
+  cursor: grabbing;
+}
+
+/* ---- Semantic search: scoring panel + breakdown ---- */
+.rico-ss-quote {
+  font-family: var(--font-monospace);
+  color: var(--text-faint);
+}
+.rico-ss-scoring {
+  margin-bottom: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  overflow: hidden;
+}
+.rico-ss-scoring-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-scoring-head:hover {
+  background: var(--background-modifier-hover);
+}
+.rico-ss-scoring-chevron {
+  display: flex;
+  flex-shrink: 0;
+}
+.rico-ss-scoring-title {
+  font-weight: var(--font-medium);
+  color: var(--text-normal);
+}
+.rico-ss-scoring-summary {
+  margin-left: auto;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rico-ss-scoring-body {
+  padding: 4px 8px 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.rico-ss-scoring-body.is-hidden {
+  display: none;
+}
+.rico-ss-scorer {
+  padding: 6px 0;
+}
+.rico-ss-scorer-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rico-ss-scorer-label {
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-scorer-value {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+.rico-ss-scorer-slider {
+  width: 100%;
+  margin: 4px 0 2px;
+}
+.rico-ss-scorer-hint {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.3;
+}
+.rico-ss-scoring-total {
+  padding-top: 6px;
+  border-top: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+.rico-ss-scoring-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 2px;
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-kind-icon {
+  display: inline-flex;
+  margin-right: 4px;
+  color: var(--text-faint);
+  vertical-align: text-bottom;
+}
+.rico-ss-item-score {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.rico-ss-item-caret {
+  display: flex;
+  color: var(--text-faint);
+}
+.rico-ss-breakdown {
+  margin: 0 8px 6px 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+.rico-ss-breakdown-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 0;
+  color: var(--text-muted);
+}
+.rico-ss-breakdown-line.is-total {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+}
+.rico-ss-bd-key {
+  width: 3.5em;
+  flex-shrink: 0;
+}
+.rico-ss-bd-math {
+  flex: 1;
+  color: var(--text-faint);
+}
+.rico-ss-bd-value {
+  flex-shrink: 0;
+}
+
+/* ---- Semantic search: filter panel ---- */
+.rico-ss-filters {
+  margin-bottom: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  overflow: hidden;
+}
+.rico-ss-filters-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-filters-head:hover {
+  background: var(--background-modifier-hover);
+}
+.rico-ss-filters-chevron {
+  display: flex;
+  flex-shrink: 0;
+}
+.rico-ss-filters-title {
+  font-weight: var(--font-medium);
+  color: var(--text-normal);
+}
+.rico-ss-filters-badge {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  color: var(--text-faint);
+}
+.rico-ss-filters-badge.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.rico-ss-filters-body {
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.rico-ss-filters-body.is-hidden {
+  display: none;
+}
+.rico-ss-filter-row {
+  padding: 4px 0;
+}
+.rico-ss-filter-label {
+  margin-bottom: 3px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-filter-input {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: var(--font-ui-smaller);
+}
+.rico-ss-filter-chips {
+  display: flex;
+  gap: 4px;
+}
+.rico-ss-chip-btn {
+  padding: 2px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+  box-shadow: none;
+}
+.rico-ss-chip-btn.is-on {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.rico-ss-filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rico-ss-filter-dash {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.rico-ss-filter-reset {
+  width: 100%;
+  margin-top: 6px;
+  font-size: var(--font-ui-smaller);
+}
+
+
+/* ---------------- Quiz builder ---------------- */
+
+.rico-quiz-root {
+  overflow-y: auto;
+  padding: 0;
+}
+
+.rico-quiz-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.rico-quiz-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.rico-quiz-source {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rico-quiz-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.rico-quiz-timer.is-urgent {
+  color: var(--text-error);
+}
+
+.rico-quiz-timer-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  margin: 10px 0 24px;
+  overflow: hidden;
+}
+
+.rico-quiz-timer-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--interactive-accent);
+  transition: width 1s linear;
+}
+
+.rico-quiz-timer-fill.is-urgent {
+  background: var(--text-error);
+}
+
+.rico-quiz-question {
+  margin: 0 0 24px;
+  line-height: 1.4;
+}
+
+.rico-quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rico-quiz-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  height: auto;
+  white-space: normal;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  cursor: pointer;
+}
+
+.rico-quiz-option:hover:not(.is-locked) {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+
+.rico-quiz-option.is-locked {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.rico-quiz-option.is-correct {
+  border-color: var(--color-green);
+  background: rgba(var(--color-green-rgb), 0.12);
+  opacity: 1;
+}
+
+.rico-quiz-option.is-wrong {
+  border-color: var(--color-red);
+  background: rgba(var(--color-red-rgb), 0.12);
+  opacity: 1;
+}
+
+.rico-quiz-option-label {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.rico-quiz-option-text {
+  flex: 1;
+}
+
+.rico-quiz-reveal {
+  display: none;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.rico-quiz-reveal.is-open {
+  display: block;
+}
+
+.rico-quiz-verdict {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.rico-quiz-verdict.is-correct {
+  color: var(--color-green);
+}
+
+.rico-quiz-verdict.is-wrong {
+  color: var(--color-red);
+}
+
+.rico-quiz-explanation {
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+
+.rico-quiz-reference {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  border-left: 2px solid var(--background-modifier-border);
+  margin-bottom: 18px;
+}
+
+.rico-quiz-feedback {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.rico-quiz-vote {
+  font-size: 0.85em;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.rico-quiz-vote.is-voted {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rico-quiz-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rico-quiz-link {
+  background: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rico-quiz-muted {
+  color: var(--text-muted);
+}
+
+.rico-quiz-score {
+  text-align: center;
+  margin: 24px 0 32px;
+}
+
+.rico-quiz-score-big {
+  font-size: 2.6em;
+  font-weight: 700;
+}
+
+.rico-quiz-missed li {
+  margin-bottom: 6px;
+}
+
+.rico-quiz-modal-label {
+  display: block;
+  margin: 14px 0 4px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.rico-quiz-modal-input,
+.rico-quiz-modal-textarea {
+  width: 100%;
+}
+
+.rico-quiz-modal-textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.rico-quiz-modal-hint {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin: 0;
+}
+
+/* ---- Mermaid Links ---- */
+
+/* These sit inside an <svg>, so they need their own cursor and hover rules. */
+.rico-mermaid-link {
+  cursor: pointer;
+}
+
+.rico-mermaid-link:hover text,
+.rico-mermaid-link:hover tspan,
+.rico-mermaid-link:hover .nodeLabel {
+  text-decoration: underline;
+}
+
+/* Match how Obsidian renders a link to a note that does not exist yet. */
+.rico-mermaid-link.is-unresolved text,
+.rico-mermaid-link.is-unresolved tspan,
+.rico-mermaid-link.is-unresolved .nodeLabel {
+  opacity: 0.6;
+}
+
+/* --------------------------------------------------------------------------
+   Canvas Tool Rail (.rico-canvas-rail) — Photoshop-style left edge toolbar
+   -------------------------------------------------------------------------- */
+.rico-canvas-rail {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+  /* Above the drawing overlay (1000) so the tools stay reachable mid-stroke. */
+  z-index: 1003;
+}
+
+.rico-canvas-rail-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.rico-canvas-rail-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.rico-canvas-rail-btn.is-active,
+.rico-canvas-rail-btn.active {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+.rico-canvas-rail-btn .svg-icon {
+  width: 17px;
+  height: 17px;
+}
+.rico-canvas-rail-btn[draggable="true"] { cursor: grab; }
+.rico-canvas-rail-btn[draggable="true"]:active { cursor: grabbing; }

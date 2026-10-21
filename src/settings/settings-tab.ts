@@ -1,10 +1,15 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type RicoObsidianPlugin from "../main";
 import {
+  DEFAULT_QUIZ_FOLDER,
   DEFAULT_VISIBILITY_RULES,
   DEFAULT_VISIBLE_EXTENSIONS,
   RicoPluginSettings,
 } from "../types";
+import { getModel } from "../modules/semantic-search/model-registry";
+import { ModelManager } from "../modules/semantic-search/model-manager";
+import { ModelManagerUi } from "../modules/semantic-search/model-manager-ui";
+import { rebalanceWeights } from "../modules/semantic-search/scoring";
 
 type ToggleKey = {
   [K in keyof RicoPluginSettings]: RicoPluginSettings[K] extends boolean ? K : never;
@@ -12,6 +17,9 @@ type ToggleKey = {
 
 export class RicoSettingTab extends PluginSettingTab {
   plugin: RicoObsidianPlugin;
+  /** Kept across redraws so a running download survives reopening settings. */
+  private modelManager: ModelManager | null = null;
+  private modelUi: ModelManagerUi | null = null;
 
   constructor(app: App, plugin: RicoObsidianPlugin) {
     super(app, plugin);
@@ -28,6 +36,9 @@ export class RicoSettingTab extends PluginSettingTab {
     this.renderDatabaseGroup(containerEl);
     this.renderFilesGroup(containerEl);
     this.renderToolsGroup(containerEl);
+    this.renderQuizGroup(containerEl);
+    this.renderMermaidLinksGroup(containerEl);
+    this.renderSemanticSearchGroup(containerEl);
   }
 
   // ---- Groups ----
@@ -38,7 +49,7 @@ export class RicoSettingTab extends PluginSettingTab {
     this.toggle(containerEl, {
       key: "enableCanvasDrawing",
       name: "Freehand Drawing",
-      desc: "Enable pencil tool, frames, and layers overlay on Obsidian Canvas.",
+      desc: "Free drawing on Obsidian Canvas: pen, line, arrow, shapes, and eraser.",
       onChange: (val) => {
         if (val) this.plugin.syncOverlays();
       },
@@ -67,6 +78,92 @@ export class RicoSettingTab extends PluginSettingTab {
       key: "enableCanvasOutline",
       name: "Canvas Outline",
       desc: "Read-only markdown view of the open canvas in the right sidebar (groups become headings, every arrow is listed as a bullet under its nodes, click to zoom to a node). Open it from the command palette. Changes apply after reloading the plugin.",
+    });
+    this.toggle(containerEl, {
+      key: "enableCanvasNetworkGraph",
+      name: "Canvas Network Graph",
+      desc: "Read-only force-directed graph of the open canvas in the right sidebar (circle size = number of connections, color = node type, click to zoom to a node). Open it from the command palette. Changes apply after reloading the plugin.",
+    });
+    this.toggle(containerEl, {
+      key: "enableCanvasRoadmapNode",
+      name: "Roadmap Node",
+      desc: "roadmap.sh-style cards on canvas: a title, a status (Learning / Done / Skip), and a linked note. Click a card to read the note in the right sidebar. Add one from the command palette or the node right-click menu.",
+    });
+
+    new Setting(containerEl)
+      .setName("Roadmap Node: default status")
+      .setDesc("Status a newly created roadmap card starts in.")
+      .addDropdown((drop) =>
+        drop
+          .addOptions({ none: "Not started", learning: "Learning", done: "Done", skip: "Skip" })
+          .setValue(this.plugin.settings.roadmapNodeDefaultStatus)
+          .onChange(async (val) => {
+            this.plugin.settings.roadmapNodeDefaultStatus = val;
+            await this.plugin.savePluginSettings();
+          })
+      );
+
+    this.toggle(containerEl, {
+      key: "enableNoteToCanvas",
+      name: "Note to Canvas",
+      desc: "Turn a markdown note into a canvas, one card per heading, arrows from parent heading to child. Run it from the command palette, the editor right-click menu, or right-click the note in the file explorer. Re-running keeps cards you moved by hand.",
+    });
+
+    new Setting(containerEl)
+      .setName("Note to Canvas: split depth")
+      .setDesc("Deepest heading level that gets its own card (1-6). Deeper headings stay inside their parent card.")
+      .addText((text) =>
+        text
+          .setPlaceholder("6")
+          .setValue(String(this.plugin.settings.noteToCanvasMaxDepth))
+          .onChange(async (val) => {
+            const n = Number.parseInt(val, 10);
+            this.plugin.settings.noteToCanvasMaxDepth = Number.isFinite(n) ? Math.min(6, Math.max(1, n)) : 6;
+            await this.plugin.savePluginSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Note to Canvas: card size")
+      .setDesc("Width and height of each generated card, in canvas pixels.")
+      .addText((text) =>
+        text
+          .setPlaceholder("width (400)")
+          .setValue(String(this.plugin.settings.noteToCanvasCardWidth))
+          .onChange(async (val) => {
+            const n = Number.parseInt(val, 10);
+            this.plugin.settings.noteToCanvasCardWidth = Number.isFinite(n) && n > 0 ? n : 400;
+            await this.plugin.savePluginSettings();
+          })
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("height (240)")
+          .setValue(String(this.plugin.settings.noteToCanvasCardHeight))
+          .onChange(async (val) => {
+            const n = Number.parseInt(val, 10);
+            this.plugin.settings.noteToCanvasCardHeight = Number.isFinite(n) && n > 0 ? n : 240;
+            await this.plugin.savePluginSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Note to Canvas: output folder")
+      .setDesc('Where generated canvases go, e.g. "Canvas". Leave empty to save beside the note.')
+      .addText((text) =>
+        text
+          .setPlaceholder("(beside the note)")
+          .setValue(this.plugin.settings.noteToCanvasFolder)
+          .onChange(async (val) => {
+            this.plugin.settings.noteToCanvasFolder = val;
+            await this.plugin.savePluginSettings();
+          })
+      );
+
+    this.toggle(containerEl, {
+      key: "noteToCanvasIncludeBody",
+      name: "Note to Canvas: full text in cards",
+      desc: "On, each card holds the section's text. Off, the card holds the heading plus an embed linking back to that section of the note.",
     });
   }
 
@@ -223,6 +320,375 @@ export class RicoSettingTab extends PluginSettingTab {
         } else {
           this.plugin.disableTocManager();
         }
+      },
+    });
+  }
+
+  private renderQuizGroup(containerEl: HTMLElement): void {
+    this.heading(containerEl, "Quiz");
+
+    this.toggle(containerEl, {
+      key: "enableQuiz",
+      name: "Quiz builder",
+      desc: 'Right-click a folder to copy a "create quiz group" prompt for your agent, then run the generated questions with a timer. Changes apply after reloading the plugin.',
+    });
+
+    new Setting(containerEl)
+      .setName("Quiz folder name")
+      .setDesc('Folder that holds quiz notes. Created inside whatever folder you right-click, and scanned vault-wide by "Run global quiz".')
+      .addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_QUIZ_FOLDER)
+          .setValue(this.plugin.settings.quizFolderName)
+          .onChange(async (val) => {
+            this.plugin.settings.quizFolderName = val.trim() || DEFAULT_QUIZ_FOLDER;
+            await this.plugin.savePluginSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Seconds per question")
+      .setDesc("Time limit for each question. Running out counts as a wrong answer.")
+      .addText((text) =>
+        text
+          .setPlaceholder("30")
+          .setValue(String(this.plugin.settings.quizQuestionSeconds))
+          .onChange(async (val) => {
+            const n = Number.parseInt(val, 10);
+            this.plugin.settings.quizQuestionSeconds = Number.isFinite(n) && n > 0 ? n : 30;
+            await this.plugin.savePluginSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Questions per generated group")
+      .setDesc('How many questions the "Create quiz group" prompt asks your agent to write.')
+      .addText((text) =>
+        text
+          .setPlaceholder("10")
+          .setValue(String(this.plugin.settings.quizDefaultCount))
+          .onChange(async (val) => {
+            const n = Number.parseInt(val, 10);
+            this.plugin.settings.quizDefaultCount = Number.isFinite(n) && n > 0 ? n : 10;
+            await this.plugin.savePluginSettings();
+          })
+      );
+
+    this.toggle(containerEl, {
+      key: "quizSkipBadQuestions",
+      name: "Skip questions marked irrelevant",
+      desc: "Leave out questions you gave more 👎 than 👍. They still show up in the scan-and-fix prompt.",
+    });
+  }
+
+  private renderSemanticSearchGroup(containerEl: HTMLElement): void {
+    this.heading(containerEl, "Semantic Search");
+
+    this.toggle(containerEl, {
+      key: "enableSemanticSearch",
+      name: "Semantic search",
+      desc:
+        "Find related notes by meaning instead of keywords, using a model stored in your vault. " +
+        "Nothing is sent over the network. Changes apply after reloading the plugin.",
+    });
+
+    const spec = getModel(this.plugin.settings.semanticSearchModelKey);
+
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Pick a model and press Download. Files are fetched from HuggingFace only " +
+        "when you press the button, and everything runs offline after that.",
+    });
+
+    // Reuse one manager across redraws so an in-flight download is not orphaned.
+    if (!this.modelManager) {
+      this.modelManager = new ModelManager(this.plugin, () => this.plugin.settings.semanticSearchModelPath);
+    }
+    this.modelUi = new ModelManagerUi({
+      app: this.app,
+      manager: this.modelManager,
+      onModelsChanged: () =>
+        (this.plugin as unknown as { reloadSemanticIndex?: () => void }).reloadSemanticIndex?.(),
+      selectedKey: () => this.plugin.settings.semanticSearchModelKey,
+      indexedKey: () => this.plugin.settings.semanticSearchModelKey,
+      onSelect: async (key) => {
+        if (key === this.plugin.settings.semanticSearchModelKey) return;
+        this.plugin.settings.semanticSearchModelKey = key;
+        await this.plugin.savePluginSettings();
+        new Notice("Model changed. Re-index the vault and reload the plugin.");
+      },
+    });
+    void this.modelUi.render(containerEl);
+
+    new Setting(containerEl)
+      .setName("Model folder")
+      .setDesc(
+        `Vault-relative folder holding the downloaded model files. ` +
+          `This model is expected in "${(this.plugin.settings.semanticSearchModelPath || ".models").replace(/\/+$/, "")}/${spec.key}". ` +
+          "See docs/semantic-search-model-setup.md.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder(".models")
+          .setValue(this.plugin.settings.semanticSearchModelPath)
+          .onChange(async (val) => {
+            this.plugin.settings.semanticSearchModelPath = val.trim();
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Results limit")
+      .setDesc("How many related notes to show (default 20).")
+      .addText((text) =>
+        text
+          .setPlaceholder("20")
+          .setValue(String(this.plugin.settings.semanticSearchResultsLimit))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed <= 0) return;
+            this.plugin.settings.semanticSearchResultsLimit = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Minimum score")
+      .setDesc("Hide results below this score, from 0 to 1. Leave at 0 to show everything.")
+      .addText((text) =>
+        text
+          .setPlaceholder("0")
+          .setValue(String(this.plugin.settings.semanticSearchMinScore))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) return;
+            this.plugin.settings.semanticSearchMinScore = parsed;
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Exclude filter")
+      .setDesc(
+        "Comma-separated path fragments to keep out of the index and results, " +
+          "for example \"Archive/, Daily/\". Matching is case-sensitive.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("Archive/, Templates/")
+          .setValue(this.plugin.settings.semanticSearchExcludeFilter)
+          .onChange(async (val) => {
+            this.plugin.settings.semanticSearchExcludeFilter = val;
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Batch size")
+      .setDesc(
+        "Notes embedded per model call. Higher indexes faster but uses more memory. " +
+          "Try 16 on a fast machine, or 4 if indexing makes Obsidian stutter.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("8")
+          .setValue(String(this.plugin.settings.semanticSearchBatchSize))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 1 || parsed > 64) return;
+            this.plugin.settings.semanticSearchBatchSize = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Characters per note")
+      .setDesc("How much of a note is sent to the model. Lower is much faster; 2000 is usually enough to capture what a note is about. 0 means no limit.")
+      .addText((text) =>
+        text
+          .setPlaceholder("8000")
+          .setValue(String(this.plugin.settings.semanticSearchMaxChars))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 0) return;
+            this.plugin.settings.semanticSearchMaxChars = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    this.toggle(containerEl, {
+      key: "semanticSearchAsYouType",
+      name: "Search while typing",
+      desc:
+        "Search as you type in the panel's search box. Turn off to search only when " +
+        "you press Enter, which is lighter on a slower machine.",
+    });
+
+    new Setting(containerEl)
+      .setName("Typing delay")
+      .setDesc("How long to wait after the last keystroke before searching, in milliseconds.")
+      .addText((text) =>
+        text
+          .setPlaceholder("400")
+          .setValue(String(this.plugin.settings.semanticSearchDebounceMs))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 5000) return;
+            this.plugin.settings.semanticSearchDebounceMs = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    this.toggle(containerEl, {
+      key: "semanticSearchShowFullPath",
+      name: "Show folder path",
+      desc: "Show the folder path under each result.",
+    });
+
+    this.heading(containerEl, "Semantic Search: scoring");
+
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Three scorers can contribute to a result's score. Weights always add up to 1.0, " +
+        "so moving one adjusts the others. These can also be tuned from the panel itself.",
+    });
+
+    this.toggle(containerEl, {
+      key: "semanticSearchUseVector",
+      name: "Use vector scoring",
+      desc: "Match by meaning. Finds notes about the same thing even with different words.",
+    });
+    this.toggle(containerEl, {
+      key: "semanticSearchUseExact",
+      name: "Use exact scoring",
+      desc: "Match literal text from the second search box.",
+    });
+    this.toggle(containerEl, {
+      key: "semanticSearchUseFuzzy",
+      name: "Use fuzzy scoring",
+      desc: "Match near misses and typos. Off by default; vector and exact cover most needs.",
+    });
+
+    for (const [key, label] of [
+      ["semanticSearchWeightVector", "Vector weight"],
+      ["semanticSearchWeightExact", "Exact weight"],
+      ["semanticSearchWeightFuzzy", "Fuzzy weight"],
+    ] as const) {
+      new Setting(containerEl)
+        .setName(label)
+        .setDesc("0 to 1. The other two adjust so the total stays 1.0.")
+        .addSlider((slider) =>
+          slider
+            .setLimits(0, 1, 0.05)
+            .setValue(this.plugin.settings[key])
+            .setDynamicTooltip()
+            .onChange(async (val) => {
+              const moved = key.replace("semanticSearchWeight", "").toLowerCase() as
+                | "vector"
+                | "exact"
+                | "fuzzy";
+              const next = rebalanceWeights(
+                {
+                  vector: this.plugin.settings.semanticSearchWeightVector,
+                  exact: this.plugin.settings.semanticSearchWeightExact,
+                  fuzzy: this.plugin.settings.semanticSearchWeightFuzzy,
+                },
+                moved,
+                val,
+              );
+              this.plugin.settings.semanticSearchWeightVector = next.vector;
+              this.plugin.settings.semanticSearchWeightExact = next.exact;
+              this.plugin.settings.semanticSearchWeightFuzzy = next.fuzzy;
+              await this.plugin.savePluginSettings();
+            }),
+        );
+    }
+
+    this.toggle(containerEl, {
+      key: "semanticSearchExactRequired",
+      name: "Exact match is required",
+      desc:
+        "On: notes without the exact term are dropped entirely. " +
+        "Off: they stay but score 0 for exact.",
+    });
+    this.toggle(containerEl, {
+      key: "semanticSearchShowBreakdown",
+      name: "Show score breakdown",
+      desc: "Click a result's score to see how each scorer contributed.",
+    });
+
+    new Setting(containerEl)
+      .setName("Snippet length")
+      .setDesc(
+        "Characters of each note kept in the index for exact and fuzzy matching. " +
+          "Larger catches more but makes the index file bigger. Changing this needs a re-index.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("1000")
+          .setValue(String(this.plugin.settings.semanticSearchSnippetChars))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 0) return;
+            this.plugin.settings.semanticSearchSnippetChars = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    this.heading(containerEl, "Semantic Search: indexing");
+
+    this.toggle(containerEl, {
+      key: "semanticSearchIndexCanvas",
+      name: "Index canvas files",
+      desc:
+        "Also index text written on canvas cards. Linked notes are not re-read, " +
+        "only their names. Needs a re-index after changing.",
+    });
+
+    this.toggle(containerEl, {
+      key: "semanticSearchAutoIndex",
+      name: "Re-index on edit",
+      desc:
+        "Re-embed a note a while after you stop editing it. Turn off if Obsidian " +
+        "feels slow while you write; a manual re-index still catches everything.",
+    });
+
+    new Setting(containerEl)
+      .setName("Re-index delay")
+      .setDesc(
+        "How long after your last edit before the note is re-embedded, in milliseconds. " +
+          "Higher means less background work while you write.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("30000")
+          .setValue(String(this.plugin.settings.semanticSearchAutoIndexDelayMs))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 1000) return;
+            this.plugin.settings.semanticSearchAutoIndexDelayMs = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+  }
+
+  private renderMermaidLinksGroup(containerEl: HTMLElement): void {
+    this.heading(containerEl, "Mermaid Links");
+
+    this.toggle(containerEl, {
+      key: "enableMermaidLinks",
+      name: "Wikilinks in mermaid diagrams",
+      desc: "Write [[Note]] as a node label in a mermaid diagram and it becomes a real link: click to open, ctrl-click for a new tab, hover to preview. Works in sequenceDiagram and flowchart. Changes apply after reloading the plugin.",
+    });
+
+    this.toggle(containerEl, {
+      key: "mermaidLinksGraph",
+      name: "Show diagram links in Graph View",
+      desc: "Also register those links with Obsidian's link index, so diagram relations appear in Graph View and in the backlink panel. Uses an internal Obsidian structure, so turn this off if a future update makes the graph behave oddly.",
+      onChange: () => {
+        new Notice("Reload the plugin to apply this to the graph.");
       },
     });
   }

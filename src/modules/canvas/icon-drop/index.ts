@@ -1,4 +1,5 @@
-import { App, Modal, Notice, setIcon, setTooltip } from "obsidian";
+import { App, Modal, Notice, setTooltip } from "obsidian";
+import { registerRailButton, syncRail, unregisterRailButton } from "../tool-rail";
 import type RicoObsidianPlugin from "../../../main";
 import { generateCanvasId } from "../../../shared/utils/canvas";
 
@@ -139,7 +140,7 @@ export class CanvasIconDropManager {
   destroy(): void {
     this.menuObserver?.disconnect();
     this.menuObserver = null;
-    document.querySelectorAll(".rico-icon-drop-btn").forEach((el) => el.remove());
+    unregisterRailButton("icon-drop");
   }
 
   private sync(): void {
@@ -150,45 +151,41 @@ export class CanvasIconDropManager {
       const canvas = view.canvas;
       if (!canvas) continue;
 
-      const cardMenu: HTMLElement | null =
-        canvas.cardMenuEl || view.containerEl?.querySelector(".canvas-card-menu");
-      if (cardMenu) this.ensureButton(cardMenu);
+      this.ensureButton();
 
       const wrapper: HTMLElement | null =
         view.containerEl?.querySelector(".canvas-wrapper") || view.containerEl;
-      if (wrapper) this.ensureDropZone(wrapper, canvas);
+      if (wrapper) {
+        syncRail(wrapper);
+        this.ensureDropZone(wrapper, canvas);
+      }
     }
   }
 
-  private ensureButton(cardMenu: HTMLElement): void {
-    if (cardMenu.querySelector(".rico-icon-drop-btn")) return;
-
-    const btn = document.createElement("div");
-    btn.className = "canvas-card-menu-button clickable-icon rico-icon-drop-btn";
-    btn.setAttribute("aria-label", "Drag to add icon");
-    btn.setAttribute("draggable", "true");
-    setIcon(btn, "sparkles");
-    setTooltip(btn, "Drag to add icon", { placement: "top" });
-
-    btn.addEventListener("dragstart", (e: DragEvent) => {
-      if (!e.dataTransfer) return;
-      e.dataTransfer.setData(ICON_DRAG_MIME, "1");
-      e.dataTransfer.effectAllowed = "copy";
+  private ensureButton(): void {
+    registerRailButton({
+      id: "icon-drop",
+      icon: "sparkles",
+      label: "Drag to add icon",
+      order: 30,
+      className: "rico-icon-drop-btn",
+      draggable: true,
+      onClick: () => {
+        const iconize = getIconizePlugin(this.plugin.app);
+        if (!iconize) {
+          new Notice("Iconize plugin is not enabled");
+          return;
+        }
+        new Notice("Drag this button onto the canvas to drop an icon");
+      },
+      onCreate: (btn) => {
+        btn.addEventListener("dragstart", (e: DragEvent) => {
+          if (!e.dataTransfer) return;
+          e.dataTransfer.setData(ICON_DRAG_MIME, "1");
+          e.dataTransfer.effectAllowed = "copy";
+        });
+      },
     });
-
-    btn.addEventListener("click", (e: MouseEvent) => {
-      e.stopPropagation();
-      const iconize = getIconizePlugin(this.plugin.app);
-      if (!iconize) {
-        new Notice("Iconize plugin is not enabled");
-        return;
-      }
-      new Notice("Drag this button onto the canvas to drop an icon");
-    });
-
-    const layersBtn = cardMenu.querySelector(".rich-canvas-layers-btn");
-    if (layersBtn) layersBtn.insertAdjacentElement("afterend", btn);
-    else cardMenu.appendChild(btn);
   }
 
   private ensureDropZone(wrapper: HTMLElement, canvas: any): void {

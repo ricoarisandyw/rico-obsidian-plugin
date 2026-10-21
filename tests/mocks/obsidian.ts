@@ -1,6 +1,65 @@
+/** Vault file stand-ins. Production code narrows with `instanceof TFile`,
+ * so tests construct these rather than plain objects. */
+export class TAbstractFile {
+  path: string;
+  name: string;
+
+  constructor(path = "") {
+    this.path = path;
+    this.name = path.split("/").pop() ?? path;
+  }
+}
+
+export class TFile extends TAbstractFile {
+  extension: string;
+  basename: string;
+
+  constructor(path = "") {
+    super(path);
+    const dot = this.name.lastIndexOf(".");
+    this.extension = dot > 0 ? this.name.slice(dot + 1) : "";
+    this.basename = dot > 0 ? this.name.slice(0, dot) : this.name;
+  }
+}
+
+export class TFolder extends TAbstractFile {
+  children: TAbstractFile[] = [];
+}
+
+/** Minimal stand-in for Obsidian's Keymap scope, enough to assert priority. */
+export class Scope {
+  handlers: Array<{ mods: string[]; key: string; fn: () => boolean | void }> = [];
+
+  register(mods: string[], key: string, fn: () => boolean | void): any {
+    const h = { mods, key, fn };
+    // Obsidian prepends, so the newest registration wins.
+    this.handlers.unshift(h);
+    return h;
+  }
+
+  unregister(handle: any): void {
+    const i = this.handlers.indexOf(handle);
+    if (i >= 0) this.handlers.splice(i, 1);
+  }
+
+  /** Dispatch like Obsidian does: first handler returning false consumes it. */
+  dispatch(mods: string[], key: string): boolean {
+    for (const h of this.handlers) {
+      const sameMods =
+        h.mods.length === mods.length && h.mods.every((m) => mods.includes(m));
+      if (sameMods && h.key === key) {
+        return h.fn() !== false;
+      }
+    }
+    return true;
+  }
+}
+
 export class App {
   workspace: any;
   vault: any;
+  metadataCache: any;
+  scope: Scope = new Scope();
 
   constructor() {
     this.workspace = {
@@ -11,6 +70,14 @@ export class App {
     };
     this.vault = {
       getAbstractFileByPath: () => null,
+      getMarkdownFiles: () => [],
+      // The model manager probes the vault on render; an empty adapter keeps it quiet.
+      adapter: {
+        exists: async () => false,
+        list: async () => ({ files: [], folders: [] }),
+        stat: async () => null,
+        read: async () => "",
+      },
     };
   }
 }
@@ -62,6 +129,37 @@ export function setTooltip(el: HTMLElement, tooltip: string): void {
   el.setAttribute("data-tooltip", tooltip);
 }
 
+/** Enough of Modal for subclasses to build their DOM and be opened in tests. */
+export class Modal {
+  app: App;
+  contentEl: HTMLElement;
+  titleEl: HTMLElement;
+  modalEl: HTMLElement;
+  opened = false;
+
+  constructor(app: App) {
+    this.app = app;
+    this.modalEl = document.createElement("div");
+    this.titleEl = document.createElement("div");
+    this.contentEl = document.createElement("div");
+    this.modalEl.appendChild(this.titleEl);
+    this.modalEl.appendChild(this.contentEl);
+  }
+
+  open(): void {
+    this.opened = true;
+    this.onOpen?.();
+  }
+
+  close(): void {
+    this.opened = false;
+    this.onClose?.();
+  }
+
+  onOpen(): void {}
+  onClose(): void {}
+}
+
 export class Notice {
   message: string;
   constructor(message: string) {
@@ -89,6 +187,8 @@ export interface MockSettingRecord {
   texts: Array<{ value: string; onChange?: (v: string) => any; inputEl: HTMLInputElement }>;
   areas: Array<{ value: string; onChange?: (v: string) => any; inputEl: HTMLTextAreaElement }>;
   buttons: Array<{ onClick?: () => any }>;
+  dropdowns: Array<{ value: string; options: Record<string, string>; onChange?: (v: string) => any }>;
+  sliders: Array<{ value: number; onChange?: (v: number) => any }>;
 }
 
 export class Setting {
@@ -101,6 +201,8 @@ export class Setting {
     texts: [],
     areas: [],
     buttons: [],
+    dropdowns: [],
+    sliders: [],
   };
 
   constructor(containerEl: HTMLElement) {
@@ -150,6 +252,48 @@ export class Setting {
     return this;
   }
 
+  addDropdown(cb: (c: any) => any) {
+    const state: any = { value: "", options: {} };
+    const comp: any = {
+      addOption: (k: string, v: string) => { state.options[k] = v; return comp; },
+      addOptions: (opts: Record<string, string>) => { Object.assign(state.options, opts); return comp; },
+      setValue: (v: string) => { state.value = v; return comp; },
+      onChange: (fn: (v: string) => any) => { state.onChange = fn; return comp; },
+    };
+    cb(comp);
+    this.record.dropdowns.push(state);
+    return this;
+  }
+
+  addSlider(cb: (c: any) => any) {
+    const state: any = { value: 0 };
+    const comp: any = {
+      setLimits: () => comp,
+      setDynamicTooltip: () => comp,
+      setValue: (v: number) => { state.value = v; return comp; },
+      onChange: (fn: (v: number) => any) => { state.onChange = fn; return comp; },
+    };
+    cb(comp);
+    this.record.sliders.push(state);
+    return this;
+  }
+
+  addButton(cb: (c: any) => any) {
+    const state: any = {};
+    const comp: any = {
+      setButtonText: () => comp,
+      setCta: () => comp,
+      setWarning: () => comp,
+      setDisabled: () => comp,
+      setIcon: () => comp,
+      setTooltip: () => comp,
+      onClick: (fn: () => any) => { state.onClick = fn; return comp; },
+    };
+    cb(comp);
+    this.record.buttons.push(state);
+    return this;
+  }
+
   addExtraButton(cb: (c: any) => any) {
     const state: any = {};
     const comp: any = {
@@ -173,4 +317,45 @@ export class PluginSettingTab {
     this.plugin = plugin;
     this.containerEl = document.createElement("div");
   }
+}
+
+/** Tracks listeners the way Component does, so tests can assert cleanup. */
+export class Component {
+  private listeners: Array<{ el: any; type: string; cb: any }> = [];
+
+  registerDomEvent(el: any, type: string, cb: any): void {
+    el.addEventListener(type, cb);
+    this.listeners.push({ el, type, cb });
+  }
+
+  unload(): void {
+    for (const { el, type, cb } of this.listeners) el.removeEventListener(type, cb);
+    this.listeners = [];
+  }
+}
+
+export class MarkdownRenderChild extends Component {
+  containerEl: any;
+  constructor(containerEl: any) {
+    super();
+    this.containerEl = containerEl;
+  }
+}
+
+export class Menu {
+  items: any[] = [];
+  addItem(cb: (item: any) => void): this {
+    const item: any = {
+      setTitle: () => item,
+      setIcon: () => item,
+      onClick: (fn: any) => {
+        item.click = fn;
+        return item;
+      },
+    };
+    cb(item);
+    this.items.push(item);
+    return this;
+  }
+  showAtMouseEvent(): void {}
 }

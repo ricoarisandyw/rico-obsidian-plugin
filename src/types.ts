@@ -6,8 +6,36 @@ export interface RicoPluginSettings {
   enableCanvasIconDrop: boolean;
   /** Read-only outline of the open canvas in the right sidebar. */
   enableCanvasOutline: boolean;
+  /** Read-only force-directed network graph of the open canvas in the right sidebar. */
+  enableCanvasNetworkGraph: boolean;
+  /** roadmap.sh-style canvas cards: title, status, and a linked article. */
+  enableCanvasRoadmapNode: boolean;
+  /** Status a freshly created roadmap card starts in. */
+  roadmapNodeDefaultStatus: string;
+  /** Convert a markdown note into a canvas, one card per heading. */
+  enableNoteToCanvas: boolean;
+  /** Deepest heading level that gets its own card (1-6). */
+  noteToCanvasMaxDepth: number;
+  /** Width of a generated card. */
+  noteToCanvasCardWidth: number;
+  /** Height of a generated card. */
+  noteToCanvasCardHeight: number;
+  /** Folder for generated canvases; empty means beside the note. */
+  noteToCanvasFolder: string;
+  /** Put the section text in the card; off embeds a link back to the note instead. */
+  noteToCanvasIncludeBody: boolean;
   enableFolderBase: boolean;
   enableTypingGame: boolean;
+  /** Multiple-choice quiz practice built from notes in "DB Quiz" folders. */
+  enableQuiz: boolean;
+  /** Folder name that holds quiz notes. */
+  quizFolderName: string;
+  /** Seconds allowed per question before it counts as wrong. */
+  quizQuestionSeconds: number;
+  /** Leave out questions you marked irrelevant more often than relevant. */
+  quizSkipBadQuestions: boolean;
+  /** How many questions the "Create quiz group" prompt asks your agent for. */
+  quizDefaultCount: number;
   enableRunInTerminal: boolean;
   /** Right-click actions read from 60-System/scripts/actions.json. */
   enableScriptActions: boolean;
@@ -30,7 +58,62 @@ export interface RicoPluginSettings {
   enableBlockReference: boolean;
   /** Sidebar panels listing block references: this note (right) and the whole vault (left). */
   enableBlockReferencePanels: boolean;
+  /** Wikilinks inside mermaid diagrams become clickable Obsidian links. */
+  enableMermaidLinks: boolean;
+  /** Also feed those links to Graph View and the backlink panel. */
+  mermaidLinksGraph: boolean;
+  /** Semantic search: find related notes by meaning using a local embedding model. */
+  enableSemanticSearch: boolean;
+  /** Model id from the registry in modules/semantic-search/model-registry.ts. */
+  semanticSearchModelKey: string;
+  /** Vault-relative folder holding the downloaded model files. */
+  semanticSearchModelPath: string;
+  /** How many related notes to show (default 20). */
+  semanticSearchResultsLimit: number;
+  /** Comma-separated path fragments excluded from indexing and results. */
+  semanticSearchExcludeFilter: string;
+  /** Show the folder path under each result. */
+  semanticSearchShowFullPath: boolean;
+  /** Re-embed a note shortly after it is edited. */
+  semanticSearchAutoIndex: boolean;
+  /** Characters of a note sent to the model (0 = no limit). */
+  semanticSearchMaxChars: number;
+  /** Hide results scoring below this (0-1). */
+  semanticSearchMinScore: number;
+  /** Notes embedded per model call. Higher is faster but uses more memory. */
+  semanticSearchBatchSize: number;
+  /** Search while typing. Off means the search runs on Enter. */
+  semanticSearchAsYouType: boolean;
+  /** How long to wait after the last keystroke before searching. */
+  semanticSearchDebounceMs: number;
+  /** Which scorers contribute to the total. */
+  semanticSearchUseVector: boolean;
+  semanticSearchUseExact: boolean;
+  semanticSearchUseFuzzy: boolean;
+  /** Weights, always kept summing to 1.0. */
+  semanticSearchWeightVector: number;
+  semanticSearchWeightExact: number;
+  semanticSearchWeightFuzzy: number;
+  /** Drop results without the exact term, rather than scoring them 0. */
+  semanticSearchExactRequired: boolean;
+  /** Show the per-scorer breakdown when a result is clicked. */
+  semanticSearchShowBreakdown: boolean;
+  /** Characters of each note kept in the index for exact/fuzzy matching. */
+  semanticSearchSnippetChars: number;
+  /** Index .canvas files alongside notes. */
+  semanticSearchIndexCanvas: boolean;
+  /** How long after an edit before the note is re-embedded. */
+  semanticSearchAutoIndexDelayMs: number;
 }
+
+/** Default model: handles Indonesian and English, ~120MB on disk. */
+export const DEFAULT_SEMANTIC_MODEL_KEY = "multilingual-e5-small";
+
+/** Vault-relative folder the model files are downloaded into. */
+export const DEFAULT_SEMANTIC_MODEL_PATH = ".models";
+
+/** Folder name scanned for quiz notes. */
+export const DEFAULT_QUIZ_FOLDER = "DB Quiz";
 
 export const DEFAULT_VISIBLE_EXTENSIONS = "html, htm, js, ts, css, json";
 
@@ -50,8 +133,22 @@ export const DEFAULT_SETTINGS: RicoPluginSettings = {
   enableCanvasLayers: true,
   enableCanvasIconDrop: true,
   enableCanvasOutline: true,
+  enableCanvasNetworkGraph: true,
+  enableCanvasRoadmapNode: true,
+  roadmapNodeDefaultStatus: "none",
+  enableNoteToCanvas: true,
+  noteToCanvasMaxDepth: 6,
+  noteToCanvasCardWidth: 400,
+  noteToCanvasCardHeight: 240,
+  noteToCanvasFolder: "",
+  noteToCanvasIncludeBody: true,
   enableFolderBase: true,
   enableTypingGame: true,
+  enableQuiz: true,
+  quizFolderName: DEFAULT_QUIZ_FOLDER,
+  quizQuestionSeconds: 30,
+  quizSkipBadQuestions: true,
+  quizDefaultCount: 10,
   enableRunInTerminal: true,
   enableScriptActions: true,
   enableNewFile: true,
@@ -65,6 +162,31 @@ export const DEFAULT_SETTINGS: RicoPluginSettings = {
   enableAutoPin: false,
   enableBlockReference: true,
   enableBlockReferencePanels: true,
+  enableMermaidLinks: true,
+  mermaidLinksGraph: true,
+  enableSemanticSearch: true,
+  semanticSearchModelKey: DEFAULT_SEMANTIC_MODEL_KEY,
+  semanticSearchModelPath: DEFAULT_SEMANTIC_MODEL_PATH,
+  semanticSearchResultsLimit: 20,
+  semanticSearchExcludeFilter: "",
+  semanticSearchShowFullPath: false,
+  semanticSearchAutoIndex: true,
+  semanticSearchMaxChars: 2000,
+  semanticSearchMinScore: 0,
+  semanticSearchBatchSize: 8,
+  semanticSearchAsYouType: true,
+  semanticSearchDebounceMs: 400,
+  semanticSearchUseVector: true,
+  semanticSearchUseExact: true,
+  semanticSearchUseFuzzy: false,
+  semanticSearchWeightVector: 0.5,
+  semanticSearchWeightExact: 0.3,
+  semanticSearchWeightFuzzy: 0.2,
+  semanticSearchExactRequired: false,
+  semanticSearchShowBreakdown: true,
+  semanticSearchSnippetChars: 1000,
+  semanticSearchIndexCanvas: false,
+  semanticSearchAutoIndexDelayMs: 30000,
 };
 
 /** Merge saved data over the defaults and drop keys that no longer exist (e.g. enableFlexView). */
