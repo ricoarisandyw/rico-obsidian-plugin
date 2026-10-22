@@ -38,7 +38,9 @@ export class RicoSettingTab extends PluginSettingTab {
     this.renderToolsGroup(containerEl);
     this.renderQuizGroup(containerEl);
     this.renderMermaidLinksGroup(containerEl);
+    this.renderMenuGroup(containerEl);
     this.renderSemanticSearchGroup(containerEl);
+    this.renderSemanticGraphGroup(containerEl);
   }
 
   // ---- Groups ----
@@ -379,6 +381,124 @@ export class RicoSettingTab extends PluginSettingTab {
       name: "Skip questions marked irrelevant",
       desc: "Leave out questions you gave more 👎 than 👍. They still show up in the scan-and-fix prompt.",
     });
+  }
+
+  private renderMenuGroup(containerEl: HTMLElement): void {
+    this.heading(containerEl, "Right-click menu");
+
+    this.toggle(containerEl, {
+      key: "groupContextMenu",
+      name: "Group this plugin's menu items",
+      desc:
+        "Put everything this plugin adds under one \u201cRico Plugin\u201d entry instead of " +
+        "spreading it across the root menu. Applies on the next right-click.",
+    });
+  }
+
+  private renderSemanticGraphGroup(containerEl: HTMLElement): void {
+    this.heading(containerEl, "Semantic Graph");
+
+    this.toggle(containerEl, {
+      key: "enableSemanticGraph",
+      name: "Semantic graph",
+      desc:
+        "Right-sidebar node graph of the notes nearest the one you are reading. " +
+        "Reads the semantic search index, so index your vault first. " +
+        "Changes apply after reloading the plugin.",
+    });
+
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "The graph has its own scoring weights, tuned from the panel itself, so " +
+        "they never disturb the search panel's.",
+    });
+
+    this.toggle(containerEl, {
+      key: "semanticGraphFollowActive",
+      name: "Follow the active note",
+      desc: "Re-centre the graph on whichever note you open.",
+    });
+
+    this.toggle(containerEl, {
+      key: "semanticGraphShowLabels",
+      name: "Show labels",
+      desc: "Draw note names under the circles. Turn off for a denser graph.",
+    });
+
+    this.toggle(containerEl, {
+      key: "semanticGraphSpread",
+      name: "Spread distances",
+      desc:
+        "Stretch the scores across the panel, so even close-scoring notes sit at clearly " +
+        "different distances. Turn off to draw the raw score.",
+    });
+
+    new Setting(containerEl)
+      .setName("Topic groups")
+      .setDesc(
+        "Colour related neighbours alike and gather each group on its own side. " +
+          "From 2 to 8, or 0 to turn off (default 4). Needs indexed vectors.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("4")
+          .setValue(String(this.plugin.settings.semanticGraphClusters))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 8) return;
+            this.plugin.settings.semanticGraphClusters = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Connections per note")
+      .setDesc("How many nearest notes to draw around the centre (default 12).")
+      .addText((text) =>
+        text
+          .setPlaceholder("12")
+          .setValue(String(this.plugin.settings.semanticGraphLimit))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed <= 0) return;
+            this.plugin.settings.semanticGraphLimit = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Minimum score")
+      .setDesc("Leave out connections scoring at or below this, from 0 to 1.")
+      .addText((text) =>
+        text
+          .setPlaceholder("0")
+          .setValue(String(this.plugin.settings.semanticGraphMinScore))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) return;
+            this.plugin.settings.semanticGraphMinScore = parsed;
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Maximum hops")
+      .setDesc(
+        "How far alt-clicking may expand from the centre note. Each hop ranks the " +
+          "whole vault again, so keep this small.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("2")
+          .setValue(String(this.plugin.settings.semanticGraphMaxHops))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 1) return;
+            this.plugin.settings.semanticGraphMaxHops = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
   }
 
   private renderSemanticSearchGroup(containerEl: HTMLElement): void {

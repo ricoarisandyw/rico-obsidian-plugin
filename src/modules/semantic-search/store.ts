@@ -7,7 +7,15 @@ import type { IndexEntry } from "./search";
  * Kept in its own JSON file rather than in plugin settings: vectors are large
  * and settings get read and rewritten constantly, so mixing them would make
  * every settings change rewrite megabytes.
+ *
+ * It lives in the vault (`.rico-plugin/`), not in the plugin folder. The plugin
+ * folder is often a symlink to a git checkout during development, and writing
+ * an 8MB generated file into the repository on every index is both noise in
+ * `git status` and data that belongs to the vault, not to the source.
  */
+
+/** Vault-relative folder for this plugin's generated data. */
+export const DATA_FOLDER = ".rico-plugin";
 
 const INDEX_FILE = "semantic-index.json";
 
@@ -40,7 +48,43 @@ export class VectorStore {
   constructor(private plugin: Plugin) {}
 
   private get path(): string {
+    return `${DATA_FOLDER}/${INDEX_FILE}`;
+  }
+
+  /** Where the index used to live, before it moved into the vault. */
+  private get legacyPath(): string {
     return `${this.plugin.manifest.dir}/${INDEX_FILE}`;
+  }
+
+  /**
+   * Move an index written by an older version into the new folder.
+   *
+   * Without this every user would silently lose their index and have to
+   * re-embed the whole vault, which for a large vault is many minutes of work.
+   */
+  private async migrate(): Promise<void> {
+    const adapter = this.plugin.app.vault.adapter;
+    try {
+      if (await adapter.exists(this.path)) return;
+      if (!(await adapter.exists(this.legacyPath))) return;
+
+      console.log(">>> semantic-search: moving index into", DATA_FOLDER);
+      const raw = await adapter.read(this.legacyPath);
+      await this.ensureFolder();
+      await adapter.write(this.path, raw);
+      // Only remove the old copy once the new one is safely written.
+      await adapter.remove(this.legacyPath);
+    } catch (err) {
+      console.error("[semantic-search] could not move the old index", err);
+    }
+  }
+
+  /** Create the data folder if it is not there yet. */
+  private async ensureFolder(): Promise<void> {
+    const adapter = this.plugin.app.vault.adapter;
+    if (!(await adapter.exists(DATA_FOLDER))) {
+      await adapter.mkdir(DATA_FOLDER);
+    }
   }
 
   /**
@@ -52,6 +96,8 @@ export class VectorStore {
     this.dims = dims;
     this.entries.clear();
     this.cachedAll = null;
+
+    await this.migrate();
 
     const adapter = this.plugin.app.vault.adapter;
     try {
@@ -97,6 +143,7 @@ export class VectorStore {
       ),
     };
     try {
+      await this.ensureFolder();
       await this.plugin.app.vault.adapter.write(this.path, JSON.stringify(data));
       this.dirty = false;
     } catch (err) {

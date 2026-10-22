@@ -1,4 +1,5 @@
 import { App, EventRef, Plugin } from "obsidian";
+import { leafId } from "./shared/lib/leaf-id";
 
 import { CanvasDrawingOverlay } from "./modules/canvas/drawing/overlay";
 import {
@@ -34,6 +35,8 @@ import { registerAutoPin } from "./modules/auto-pin";
 import { registerBlockReference } from "./modules/block-reference";
 import { registerBlockReferencePanels } from "./modules/block-reference/panels";
 import { registerSemanticSearch } from "./modules/semantic-search";
+import { registerSemanticGraph } from "./modules/semantic-graph";
+import { FileMenuRegistry } from "./shared/lib/menu-registry";
 import { registerMermaidLinks } from "./modules/mermaid-links";
 import { removeAllRails } from "./modules/canvas/tool-rail";
 import { DEFAULT_SETTINGS, normalizeSettings, RicoPluginSettings } from "./types";
@@ -61,10 +64,27 @@ export default class RicoObsidianPlugin extends Plugin {
   hiddenFoldersManager: HiddenFoldersManager | null = null;
   private tocManager: TocManager | null = null;
 
+  /**
+   * The one "Rico Plugin" parent in the right-click menu.
+   *
+   * Modules contribute providers to this instead of registering their own
+   * file-menu listener, which is the only way they can share a single parent
+   * row — separate listeners cannot see each other's items.
+   */
+  readonly fileMenu = new FileMenuRegistry({
+    grouped: () => this.settings.groupContextMenu,
+  });
+
   async onload(): Promise<void> {
     await this.loadSettings();
 
     console.log("🚀 Rico Obsidian Plugin suite loaded");
+
+    // One listener for every module's right-click items, registered before the
+    // modules themselves so their providers are in place by the first click.
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => this.fileMenu.fill(menu, file)),
+    );
 
 
     // 1. Canvas Drawing Module
@@ -145,11 +165,11 @@ export default class RicoObsidianPlugin extends Plugin {
 
     // 4e. Note to Canvas Module (markdown headings become canvas cards)
     // Always registered; the handlers check the setting, so the toggle applies instantly.
-    registerNoteToCanvas(this);
+    registerNoteToCanvas(this, this.fileMenu);
 
     // 5. Folder Base Module
     if (this.settings.enableFolderBase) {
-      registerFolderBase(this);
+      registerFolderBase(this, this.fileMenu);
     }
 
     // 6. Typing Game Module
@@ -159,22 +179,22 @@ export default class RicoObsidianPlugin extends Plugin {
 
     // 6b. Quiz Builder Module
     if (this.settings.enableQuiz) {
-      registerQuiz(this);
+      registerQuiz(this, this.fileMenu);
     }
 
     // 7. Run in Terminal Module
     if (this.settings.enableRunInTerminal) {
-      registerRunInTerminal(this);
+      registerRunInTerminal(this, this.fileMenu);
     }
 
     // 7b. Script Actions Module (right-click actions defined in scripts/actions.json)
     if (this.settings.enableScriptActions) {
-      registerScriptActions(this);
+      registerScriptActions(this, this.fileMenu);
     }
 
     // 7c. New File Module (right-click -> "New file..." with any allowed extension)
     if (this.settings.enableNewFile) {
-      registerNewFile(this);
+      registerNewFile(this, this.fileMenu);
     }
 
     // 7d. Force close tabs (all / others, pinned included)
@@ -217,6 +237,16 @@ export default class RicoObsidianPlugin extends Plugin {
         console.error(">>> semantic-search: failed to register", err);
       }
     }
+
+    // 12c. Semantic Graph (right sidebar: nearest connections of the active note).
+    // Reads the index semantic search builds; keeps its own scoring weights.
+    if (this.settings.enableSemanticGraph) {
+      try {
+        registerSemanticGraph(this);
+      } catch (err) {
+        console.error(">>> semantic-graph: failed to register", err);
+      }
+    }
     if (this.settings.enableBlockReferencePanels) {
       registerBlockReferencePanels(this);
     }
@@ -234,11 +264,12 @@ export default class RicoObsidianPlugin extends Plugin {
     if (!this.settings.enableCanvasDrawing) return;
     const activeIds = new Set<string>();
     for (const leaf of this.app.workspace.getLeavesOfType("canvas")) {
-      activeIds.add(leaf.id);
-      if (!this.overlays.has(leaf.id)) {
+      const id = leafId(leaf);
+      activeIds.add(id);
+      if (!this.overlays.has(id)) {
         const overlay = new CanvasDrawingOverlay(leaf, this.app, this);
         overlay.attach();
-        this.overlays.set(leaf.id, overlay);
+        this.overlays.set(id, overlay);
       }
     }
     for (const [id, overlay] of this.overlays) {

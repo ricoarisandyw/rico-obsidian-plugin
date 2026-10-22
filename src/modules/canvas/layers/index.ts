@@ -594,10 +594,10 @@ export class CanvasLayersManager {
   }
 
   private reorderByDrop(canvas: any, dragId: string, targetId: string, after: boolean): void {
-    let visual = this.panel?.list
-      ? [...this.panel.list.querySelectorAll(".cl-row")].map((r) => r.getAttribute("data-id")!)
-      : null;
-    if (!visual || !visual.length) {
+    let visual: string[] = this.panel?.list
+      ? Array.from(this.panel.list.querySelectorAll(".cl-row")).map((r) => r.getAttribute("data-id")!)
+      : [];
+    if (!visual.length) {
       visual = canvas.getData().nodes.map((n: any) => n.id).reverse();
     }
     visual = visual.filter((id) => id !== dragId);

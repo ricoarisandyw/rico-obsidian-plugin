@@ -1,3 +1,4 @@
+import type { FileMenuRegistry } from "../../shared/lib/menu-registry";
 import { Notice, Plugin, TFile, TFolder, normalizePath } from "obsidian";
 import { NewFileModal } from "./modal";
 import { allowedExtensions, checkFileName, joinPath, resolveTargetFolder } from "./logic";
@@ -61,23 +62,22 @@ function promptNewFile(plugin: NewFilePlugin, folderPath: string): void {
 }
 
 /** Right-click a folder or a file -> "New file..." asks for a full file name and creates it. */
-export function registerNewFile(plugin: NewFilePlugin): void {
-  plugin.registerEvent(
-    plugin.app.workspace.on("file-menu", (menu, file) => {
-      if (!plugin.settings.enableNewFile) return;
-
-      const isFolder = file instanceof TFolder;
-      if (!isFolder && !(file instanceof TFile)) return;
-
-      menu.addItem((item) =>
-        item
-          .setTitle("New file…")
-          .setIcon("file-plus")
-          .setSection("action-primary")
-          .onClick(() => promptNewFile(plugin, resolveTargetFolder(file.path, isFolder)))
-      );
-    })
-  );
+export function registerNewFile(
+  plugin: NewFilePlugin,
+  menuRegistry?: FileMenuRegistry,
+): void {
+  menuRegistry?.add((file) => {
+    if (!plugin.settings.enableNewFile) return [];
+    const isFolder = file instanceof TFolder;
+    if (!isFolder && !(file instanceof TFile)) return [];
+    return [
+      {
+        title: "New file…",
+        icon: "file-plus",
+        onClick: () => promptNewFile(plugin, resolveTargetFolder(file.path, isFolder)),
+      },
+    ];
+  });
 
   // Same prompt from the command palette, for the folder of the open file (or the vault root).
   plugin.addCommand({

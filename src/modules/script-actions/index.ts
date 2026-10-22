@@ -1,3 +1,5 @@
+import type { FileMenuRegistry } from "../../shared/lib/menu-registry";
+import type { MenuEntry } from "../../shared/lib/menu-group";
 import { Notice, Plugin, TFile, TFolder } from "obsidian";
 import {
   ACTIONS_PATH,
@@ -63,49 +65,48 @@ function runAction(vaultPath: string, action: ScriptAction, target: MenuTarget, 
   }
 }
 
-export function registerScriptActions(plugin: Plugin & { settings: { enableScriptActions: boolean } }): void {
-  plugin.registerEvent(
-    plugin.app.workspace.on("file-menu", (menu, file) => {
-      if (!plugin.settings.enableScriptActions) return;
+export function registerScriptActions(
+  plugin: Plugin & { settings: { enableScriptActions: boolean } },
+  menuRegistry?: FileMenuRegistry,
+): void {
+  menuRegistry?.add((file) => {
+    if (!plugin.settings.enableScriptActions) return [];
 
-      const isFolder = file instanceof TFolder;
-      if (!isFolder && !(file instanceof TFile)) return;
-      if (isFolder && file.isRoot()) return;
+    const isFolder = file instanceof TFolder;
+    if (!isFolder && !(file instanceof TFile)) return [];
+    if (isFolder && file.isRoot()) return [];
 
-      const vaultPath = getVaultPath(plugin);
-      if (!vaultPath) return;
+    const vaultPath = getVaultPath(plugin);
+    if (!vaultPath) return [];
 
-      const text = readActionsFile(vaultPath);
-      if (text === null) return; // no actions.json, nothing to add
+    const text = readActionsFile(vaultPath);
+    if (text === null) return []; // no actions.json, nothing to add
 
-      const { actions, errors } = parseActions(text);
+    const { actions, errors } = parseActions(text);
+    const entries: MenuEntry[] = [];
 
-      if (errors.length > 0) {
-        menu.addItem((item) =>
-          item
-            .setTitle("⚠️ actions.json has a problem")
-            .setIcon("alert-triangle")
-            .setSection("rico-script-actions")
-            .onClick(() => new Notice(`${ACTIONS_PATH}\n${errors.join("\n")}`, 12000))
-        );
-      }
+    if (errors.length > 0) {
+      entries.push({
+        title: "⚠️ actions.json has a problem",
+        icon: "alert-triangle",
+        onClick: () => new Notice(`${ACTIONS_PATH}\n${errors.join("\n")}`, 12000),
+      });
+    }
 
-      const target: MenuTarget = {
-        path: file.path,
-        isFolder,
-        extension: file instanceof TFile ? file.extension : "",
-      };
+    const target: MenuTarget = {
+      path: file.path,
+      isFolder,
+      extension: file instanceof TFile ? file.extension : "",
+    };
 
-      for (const action of actions) {
-        if (!matchesAction(action, target)) continue;
-        menu.addItem((item) =>
-          item
-            .setTitle(action.title)
-            .setIcon(action.icon)
-            .setSection("rico-script-actions")
-            .onClick(() => runAction(vaultPath, action, target, file.name))
-        );
-      }
-    })
-  );
+    for (const action of actions) {
+      if (!matchesAction(action, target)) continue;
+      entries.push({
+        title: action.title,
+        icon: action.icon,
+        onClick: () => runAction(vaultPath, action, target, file.name),
+      });
+    }
+    return entries;
+  });
 }

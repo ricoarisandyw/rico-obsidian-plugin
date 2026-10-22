@@ -1,3 +1,5 @@
+import type { FileMenuRegistry } from "../../shared/lib/menu-registry";
+import type { MenuEntry } from "../../shared/lib/menu-group";
 import { Notice, Plugin, TFolder, normalizePath } from "obsidian";
 import {
   applySkipBad,
@@ -126,7 +128,10 @@ function scanAndFix(plugin: QuizPlugin, folder: TFolder): void {
   });
 }
 
-export function registerQuiz(plugin: QuizPlugin): void {
+export function registerQuiz(
+  plugin: QuizPlugin,
+  menuRegistry?: FileMenuRegistry,
+): void {
   plugin.registerView(VIEW_TYPE_QUIZ_RUNNER, (leaf) => new QuizRunnerView(leaf));
 
   plugin.addCommand({
@@ -139,37 +144,33 @@ export function registerQuiz(plugin: QuizPlugin): void {
     void runQuiz(plugin, "", "Global quiz")
   );
 
-  plugin.registerEvent(
-    plugin.app.workspace.on("file-menu", (menu, file) => {
-      if (!plugin.settings.enableQuiz) return;
-      if (!(file instanceof TFolder)) return;
+  menuRegistry?.add((file) => {
+    if (!plugin.settings.enableQuiz) return [];
+    if (!(file instanceof TFolder)) return [];
 
-      const name = folderName(plugin);
-      const inQuizFolder = isQuizFolder(file, name);
+    const entries: MenuEntry[] = [
+      {
+        title: "Create quiz group",
+        icon: "list-plus",
+        onClick: () => promptCreateGroup(plugin, file),
+      },
+    ];
 
-      menu.addItem((item) =>
-        item
-          .setTitle("Create quiz group")
-          .setIcon("list-plus")
-          .onClick(() => promptCreateGroup(plugin, file))
-      );
-
-      if (inQuizFolder) {
-        menu.addItem((item) =>
-          item
-            .setTitle("Run this quiz")
-            .setIcon("help-circle")
-            .onClick(() => void runQuiz(plugin, file.path, file.parent?.name || file.name))
-        );
-        menu.addItem((item) =>
-          item
-            .setTitle("Scan & fix quiz")
-            .setIcon("wrench")
-            .onClick(() => scanAndFix(plugin, file))
-        );
-      }
-    })
-  );
+    // Running and fixing only make sense inside the quiz folder.
+    if (isQuizFolder(file, folderName(plugin))) {
+      entries.push({
+        title: "Run this quiz",
+        icon: "help-circle",
+        onClick: () => void runQuiz(plugin, file.path, file.parent?.name || file.name),
+      });
+      entries.push({
+        title: "Scan & fix quiz",
+        icon: "wrench",
+        onClick: () => scanAndFix(plugin, file),
+      });
+    }
+    return entries;
+  });
 }
 
 /** Pulled out for tests: what a session would play, given a collect result. */

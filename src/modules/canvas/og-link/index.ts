@@ -328,7 +328,7 @@ export class OgLinkCanvasManager {
     plugin.registerEvent(
       plugin.app.workspace.on(
         "advanced-canvas:node-editing-state-changed" as any,
-        (_canvas: any, node: any, editing: boolean) => {
+        (_canvas: any, node: any, editing: unknown) => {
           if (!editing && node.getData?.()?.customNodeType === OG_NODE_TYPE) {
             requestAnimationFrame(() => {
               const contentEl = node.nodeEl?.querySelector(".canvas-node-content");

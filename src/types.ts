@@ -104,6 +104,32 @@ export interface RicoPluginSettings {
   semanticSearchIndexCanvas: boolean;
   /** How long after an edit before the note is re-embedded. */
   semanticSearchAutoIndexDelayMs: number;
+  /** Semantic graph: the nearest connections of the active note, drawn as a node graph. */
+  enableSemanticGraph: boolean;
+  /** How many nearest notes to draw per hop. */
+  semanticGraphLimit: number;
+  /** Drop anything scoring at or below this (0-1). */
+  semanticGraphMinScore: number;
+  /** How far alt-click may expand from the centre note. */
+  semanticGraphMaxHops: number;
+  /** Stretch scores across their own range, so the panel is used end to end. */
+  semanticGraphSpread: boolean;
+  /** Topic groups to colour and gather on one side each. 0 or 1 turns it off. */
+  semanticGraphClusters: number;
+  /** Which scorers contribute, kept separate from the search panel's. */
+  semanticGraphUseVector: boolean;
+  semanticGraphUseExact: boolean;
+  semanticGraphUseFuzzy: boolean;
+  /** Weights, always kept summing to 1.0. */
+  semanticGraphWeightVector: number;
+  semanticGraphWeightExact: number;
+  semanticGraphWeightFuzzy: number;
+  /** Draw labels under the circles. Off makes a dense graph readable. */
+  semanticGraphShowLabels: boolean;
+  /** Re-centre on the note you open, rather than staying put. */
+  semanticGraphFollowActive: boolean;
+  /** Gather this plugin's right-click items under one "Rico Plugin" parent. */
+  groupContextMenu: boolean;
 }
 
 /** Default model: handles Indonesian and English, ~120MB on disk. */
@@ -187,6 +213,21 @@ export const DEFAULT_SETTINGS: RicoPluginSettings = {
   semanticSearchSnippetChars: 1000,
   semanticSearchIndexCanvas: false,
   semanticSearchAutoIndexDelayMs: 30000,
+  enableSemanticGraph: true,
+  semanticGraphLimit: 12,
+  semanticGraphMinScore: 0,
+  semanticGraphMaxHops: 2,
+  semanticGraphSpread: true,
+  semanticGraphClusters: 4,
+  semanticGraphUseVector: true,
+  semanticGraphUseExact: false,
+  semanticGraphUseFuzzy: false,
+  semanticGraphWeightVector: 0.6,
+  semanticGraphWeightExact: 0.25,
+  semanticGraphWeightFuzzy: 0.15,
+  semanticGraphShowLabels: true,
+  semanticGraphFollowActive: true,
+  groupContextMenu: true,
 };
 
 /** Merge saved data over the defaults and drop keys that no longer exist (e.g. enableFlexView). */

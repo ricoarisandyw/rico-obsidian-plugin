@@ -1,5 +1,6 @@
 import { HeadingCache, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 import type RicoObsidianPlugin from "../../main";
+import { leafId } from "../../shared/lib/leaf-id";
 
 const COLLAPSE_STORAGE_KEY = "rico-toc-collapsed";
 
@@ -79,7 +80,7 @@ export class TocManager {
 
     const liveLeafIds = new Set<string>();
     for (const leaf of this.plugin.app.workspace.getLeavesOfType("markdown")) {
-      liveLeafIds.add(leaf.id);
+      liveLeafIds.add(leafId(leaf));
       this.refreshLeaf(leaf);
     }
 
@@ -96,14 +97,14 @@ export class TocManager {
       : [];
 
     if (!file || headings.length === 0) {
-      this.removePanel(leaf.id);
+      this.removePanel(leafId(leaf));
       return;
     }
 
-    let state = this.panels.get(leaf.id);
+    let state = this.panels.get(leafId(leaf));
     if (!state) {
       state = this.createPanel(leaf);
-      this.panels.set(leaf.id, state);
+      this.panels.set(leafId(leaf), state);
     }
     state.headings = headings;
     this.renderList(leaf, state);
@@ -134,7 +135,7 @@ export class TocManager {
 
     const scrollTarget = view.contentEl;
     const scrollHandler = () => {
-      const state = this.panels.get(leaf.id);
+      const state = this.panels.get(leafId(leaf));
       if (state) this.updateActiveHeading(leaf, state);
     };
     scrollTarget.addEventListener("scroll", scrollHandler, {
@@ -209,7 +210,7 @@ export class TocManager {
   private toggleCollapsedForActive(): void {
     const leaf = this.plugin.app.workspace.getActiveViewOfType(MarkdownView)?.leaf;
     if (!leaf) return;
-    const state = this.panels.get(leaf.id);
+    const state = this.panels.get(leafId(leaf));
     if (!state) return;
     const collapsed = !state.panelEl.hasClass("rico-toc-collapsed");
     state.panelEl.toggleClass("rico-toc-collapsed", collapsed);

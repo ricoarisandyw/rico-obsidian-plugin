@@ -399,7 +399,10 @@ export class CanvasNetworkGraphView extends ItemView {
   }
 
   private bindPointer(): void {
-    this.registerDomEvent(this.svg, "wheel", (event: WheelEvent) => {
+    // registerDomEvent is typed for HTML elements; an SVG element takes the same
+    // listeners, it just is not declared as one.
+    const svgTarget = this.svg as unknown as HTMLElement;
+    this.registerDomEvent(svgTarget, "wheel", (event: WheelEvent) => {
       event.preventDefault();
       const rect = this.stageEl.getBoundingClientRect();
       const px = event.clientX - rect.left;
@@ -413,7 +416,7 @@ export class CanvasNetworkGraphView extends ItemView {
       this.paint();
     });
 
-    this.registerDomEvent(this.svg, "pointerdown", (event: PointerEvent) => {
+    this.registerDomEvent(svgTarget, "pointerdown", (event: PointerEvent) => {
       if (event.button !== 0) return;
       const group = (event.target as Element).closest(".rico-netgraph-node") as SVGGElement | null;
       const id = group?.dataset.id;
@@ -425,7 +428,7 @@ export class CanvasNetworkGraphView extends ItemView {
       this.svg.setPointerCapture(event.pointerId);
     });
 
-    this.registerDomEvent(this.svg, "pointermove", (event: PointerEvent) => {
+    this.registerDomEvent(svgTarget, "pointermove", (event: PointerEvent) => {
       if (this.drag?.kind === "pan") {
         this.panX = this.drag.panX + (event.clientX - this.drag.startX);
         this.panY = this.drag.panY + (event.clientY - this.drag.startY);
@@ -459,17 +462,17 @@ export class CanvasNetworkGraphView extends ItemView {
       this.drag = null;
       if (this.svg.hasPointerCapture(event.pointerId)) this.svg.releasePointerCapture(event.pointerId);
     };
-    this.registerDomEvent(this.svg, "pointerup", endDrag);
-    this.registerDomEvent(this.svg, "pointercancel", endDrag);
+    this.registerDomEvent(svgTarget, "pointerup", endDrag);
+    this.registerDomEvent(svgTarget, "pointercancel", endDrag);
 
-    this.registerDomEvent(this.svg, "pointerleave", () => {
+    this.registerDomEvent(svgTarget, "pointerleave", () => {
       this.hovered = null;
       this.hideTooltip();
       this.paint();
     });
 
     // Double-clicking the background shakes the layout loose and re-settles it.
-    this.registerDomEvent(this.svg, "dblclick", (event: MouseEvent) => {
+    this.registerDomEvent(svgTarget, "dblclick", (event: MouseEvent) => {
       if ((event.target as Element).closest(".rico-netgraph-node")) return;
       this.layout?.unpinAll();
       this.layout?.reheat(0.8);

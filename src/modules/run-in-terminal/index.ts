@@ -1,3 +1,4 @@
+import type { FileMenuRegistry } from "../../shared/lib/menu-registry";
 import { FileSystemAdapter, Notice, Plugin, TFile } from "obsidian";
 import { exec } from "child_process";
 
@@ -77,34 +78,34 @@ export function getVaultPath(plugin: Plugin): string {
   return (adapter as unknown as { basePath?: string })?.basePath || "";
 }
 
-export function registerRunInTerminal(plugin: Plugin & { settings: { enableRunInTerminal: boolean } }): void {
-  // 1. Register Context Menu on File Explorer / File Item
-  plugin.registerEvent(
-    plugin.app.workspace.on("file-menu", (menu, file) => {
-      if (!plugin.settings.enableRunInTerminal) return;
-      if (!(file instanceof TFile)) return;
+export function registerRunInTerminal(
+  plugin: Plugin & { settings: { enableRunInTerminal: boolean } },
+  menuRegistry?: FileMenuRegistry,
+): void {
+  // 1. Context menu entry, offered only for files we know how to run.
+  menuRegistry?.add((file) => {
+    if (!plugin.settings.enableRunInTerminal) return [];
+    if (!(file instanceof TFile)) return [];
 
-      const runner = getCommandForFile(file);
-      if (!runner) return;
+    const runner = getCommandForFile(file);
+    if (!runner) return [];
 
-      menu.addItem((item) =>
-        item
-          .setTitle("Run in terminal")
-          .setIcon("terminal")
-          .setSection("action")
-          .onClick(() => {
-            const vaultPath = getVaultPath(plugin);
-            if (!vaultPath) {
-              new Notice("Cannot determine vault directory path.");
-              return;
-            }
-
-            new Notice(`🚀 Running ${file.name} (${runner.runtime}) in terminal...`);
-            runInMacTerminal(vaultPath, runner.command);
-          })
-      );
-    })
-  );
+    return [
+      {
+        title: "Run in terminal",
+        icon: "terminal",
+        onClick: () => {
+          const vaultPath = getVaultPath(plugin);
+          if (!vaultPath) {
+            new Notice("Cannot determine vault directory path.");
+            return;
+          }
+          new Notice(`🚀 Running ${file.name} (${runner.runtime}) in terminal...`);
+          runInMacTerminal(vaultPath, runner.command);
+        },
+      },
+    ];
+  });
 
   // 2. Register Command Palette action for active file
   plugin.addCommand({

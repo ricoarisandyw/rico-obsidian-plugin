@@ -1,3 +1,4 @@
+import type { FileMenuRegistry } from "../../shared/lib/menu-registry";
 import { App, Notice, Plugin, TFolder, normalizePath } from "obsidian";
 import { baseName, buildBaseYaml, uniqueBasePath } from "./base-file";
 import { collectRows, discoverColumns } from "./data";
@@ -27,21 +28,23 @@ export async function createBaseForFolder(app: App, folder: TFolder): Promise<vo
   await app.workspace.getLeaf(true).openFile(file);
 }
 
-export function registerFolderBase(plugin: Plugin): void {
+export function registerFolderBase(
+  plugin: Plugin,
+  menuRegistry?: FileMenuRegistry,
+): void {
   plugin.registerView(VIEW_TYPE_FBASE, (leaf) => new FolderBaseView(leaf));
   plugin.registerExtensions(["fbase"], VIEW_TYPE_FBASE);
 
-  plugin.registerEvent(
-    plugin.app.workspace.on("file-menu", (menu, file) => {
-      if (file instanceof TFolder) {
-        menu.addItem((item) =>
-          item
-            .setTitle("New folder base")
-            .setIcon("table")
-            .onClick(() => void createBaseForFolder(plugin.app, file))
-        );
-      }
-    })
+  menuRegistry?.add((file) =>
+    file instanceof TFolder
+      ? [
+          {
+            title: "New folder base",
+            icon: "table",
+            onClick: () => void createBaseForFolder(plugin.app, file),
+          },
+        ]
+      : [],
   );
 
   plugin.addCommand({

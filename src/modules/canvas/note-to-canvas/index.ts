@@ -1,3 +1,4 @@
+import type { FileMenuRegistry } from "../../../shared/lib/menu-registry";
 import { Editor, MarkdownFileInfo, MarkdownView, Menu, Notice, Plugin, TAbstractFile, TFile } from "obsidian";
 
 import { buildCanvas, isForeignCanvas, mergeCanvas } from "./builder";
@@ -70,7 +71,10 @@ function isNote(file: TAbstractFile | null): file is TFile {
  * Turn the active note into a canvas, one card per heading.
  * Available from the command palette, the editor right-click menu, and the file explorer.
  */
-export function registerNoteToCanvas(plugin: NoteToCanvasPlugin): void {
+export function registerNoteToCanvas(
+  plugin: NoteToCanvasPlugin,
+  menuRegistry?: FileMenuRegistry,
+): void {
   const { workspace } = plugin.app;
 
   plugin.addCommand({
@@ -96,12 +100,17 @@ export function registerNoteToCanvas(plugin: NoteToCanvasPlugin): void {
     })
   );
 
-  plugin.registerEvent(
-    workspace.on("file-menu", (menu: Menu, file: TAbstractFile) => {
-      if (!plugin.settings.enableNoteToCanvas || !isNote(file)) return;
-      menu.addItem((item) =>
-        item.setTitle(TITLE).setIcon("layout-dashboard").onClick(() => void convertNote(plugin, file))
-      );
-    })
+  // The file-menu entry goes through the shared registry so it sits under the
+  // one "Rico Plugin" parent instead of on the root menu.
+  menuRegistry?.add((file) =>
+    plugin.settings.enableNoteToCanvas && isNote(file)
+      ? [
+          {
+            title: TITLE,
+            icon: "layout-dashboard",
+            onClick: () => void convertNote(plugin, file),
+          },
+        ]
+      : [],
   );
 }

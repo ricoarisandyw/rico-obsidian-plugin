@@ -16,11 +16,54 @@ const SCORERS: { key: ScorerKey; label: string; hint: string }[] = [
   { key: "fuzzy", label: "Fuzzy", hint: "Near misses. Tolerates typos and partial words." },
 ];
 
+/**
+ * Which settings keys this panel edits.
+ *
+ * The graph view wants the same three sliders but its own weights, so tuning
+ * one panel never silently changes the other. Rather than copy the widget, the
+ * panel is told which keys to read and write.
+ */
+export interface ScoringKeys {
+  use: Record<ScorerKey, keyof RicoPluginSettings>;
+  weight: Record<ScorerKey, keyof RicoPluginSettings>;
+  /** Omitted when the view has no exact-required option, as the graph does not. */
+  exactRequired?: keyof RicoPluginSettings;
+}
+
+export const SEARCH_SCORING_KEYS: ScoringKeys = {
+  use: {
+    vector: "semanticSearchUseVector",
+    exact: "semanticSearchUseExact",
+    fuzzy: "semanticSearchUseFuzzy",
+  },
+  weight: {
+    vector: "semanticSearchWeightVector",
+    exact: "semanticSearchWeightExact",
+    fuzzy: "semanticSearchWeightFuzzy",
+  },
+  exactRequired: "semanticSearchExactRequired",
+};
+
+export const GRAPH_SCORING_KEYS: ScoringKeys = {
+  use: {
+    vector: "semanticGraphUseVector",
+    exact: "semanticGraphUseExact",
+    fuzzy: "semanticGraphUseFuzzy",
+  },
+  weight: {
+    vector: "semanticGraphWeightVector",
+    exact: "semanticGraphWeightExact",
+    fuzzy: "semanticGraphWeightFuzzy",
+  },
+};
+
 interface PanelDeps {
   settings: () => RicoPluginSettings;
   save: () => Promise<void>;
   /** Re-run the search after a change. */
   onChange: () => void;
+  /** Defaults to the search panel's own keys. */
+  keys?: ScoringKeys;
 }
 
 export class ScoringPanel {
@@ -54,30 +97,33 @@ export class ScoringPanel {
     return on.length ? on.join(" + ") : "none enabled";
   }
 
+  private get keys(): ScoringKeys {
+    return this.deps.keys ?? SEARCH_SCORING_KEYS;
+  }
+
   private isOn(key: ScorerKey, s: RicoPluginSettings): boolean {
-    if (key === "vector") return s.semanticSearchUseVector;
-    if (key === "exact") return s.semanticSearchUseExact;
-    return s.semanticSearchUseFuzzy;
+    return !!s[this.keys.use[key]];
   }
 
   private setOn(key: ScorerKey, value: boolean, s: RicoPluginSettings): void {
-    if (key === "vector") s.semanticSearchUseVector = value;
-    else if (key === "exact") s.semanticSearchUseExact = value;
-    else s.semanticSearchUseFuzzy = value;
+    (s as unknown as Record<string, unknown>)[this.keys.use[key]] = value;
   }
 
   private weights(s: RicoPluginSettings): ScorerWeights {
+    const { weight } = this.keys;
     return {
-      vector: s.semanticSearchWeightVector,
-      exact: s.semanticSearchWeightExact,
-      fuzzy: s.semanticSearchWeightFuzzy,
+      vector: s[weight.vector] as number,
+      exact: s[weight.exact] as number,
+      fuzzy: s[weight.fuzzy] as number,
     };
   }
 
   private writeWeights(w: ScorerWeights, s: RicoPluginSettings): void {
-    s.semanticSearchWeightVector = w.vector;
-    s.semanticSearchWeightExact = w.exact;
-    s.semanticSearchWeightFuzzy = w.fuzzy;
+    const { weight } = this.keys;
+    const target = s as unknown as Record<string, unknown>;
+    target[weight.vector] = w.vector;
+    target[weight.exact] = w.exact;
+    target[weight.fuzzy] = w.fuzzy;
   }
 
   draw(): void {
@@ -149,13 +195,17 @@ export class ScoringPanel {
       text: `Total: ${total.toFixed(2)}`,
     });
 
+    // The graph has no exact-required option, so the row is skipped entirely.
+    const requiredKey = this.keys.exactRequired;
+    if (!requiredKey) return;
+
     const required = this.bodyEl.createDiv({ cls: "rico-ss-scoring-option" });
     const requiredBox = required.createEl("input", {
       attr: { type: "checkbox" },
     }) as HTMLInputElement;
-    requiredBox.checked = s.semanticSearchExactRequired;
+    requiredBox.checked = !!s[requiredKey];
     requiredBox.addEventListener("change", () => {
-      s.semanticSearchExactRequired = requiredBox.checked;
+      (s as unknown as Record<string, unknown>)[requiredKey] = requiredBox.checked;
       void this.deps.save().then(() => this.deps.onChange());
     });
     required.createSpan({ text: "Exact match is required" });

@@ -2761,3 +2761,310 @@
 }
 .rico-canvas-rail-btn[draggable="true"] { cursor: grab; }
 .rico-canvas-rail-btn[draggable="true"]:active { cursor: grabbing; }
+
+/* ==========================================================================
+   Semantic Graph — nearest connections of the active note, as a node graph
+   ========================================================================== */
+
+/* The panel is built before Obsidian has given the leaf a size, so a
+   percentage height resolves against zero and nothing shows even though the
+   DOM is correct. Filling the leaf absolutely does not wait on the parent
+   being measured. */
+.workspace-leaf-content[data-type="rico-semantic-graph"] .view-content {
+  padding: 0;
+  /* .rico-sg below is positioned against this, so it must be a containing block. */
+  position: relative;
+  overflow: hidden;
+}
+
+.rico-sg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.rico-sg-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 4px;
+}
+
+.rico-sg-title {
+  flex: none;
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+
+.rico-sg-badge {
+  font-size: 11px;
+  fill: var(--text-muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+.rico-sg-context {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rico-sg-context.is-hidden {
+  display: none;
+}
+
+.rico-sg-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.rico-sg-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.rico-sg-icon-button:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* The stage takes whatever height is left, so the graph fills the sidebar. */
+/* Keeps a height of its own, or the SVG collapses to nothing. */
+.rico-sg-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow: hidden;
+}
+
+.rico-sg-svg {
+  display: block;
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.rico-sg-svg:active {
+  cursor: grabbing;
+}
+
+/* Labels never take the pointer: hit testing is done against the layout. */
+.rico-sg-svg text {
+  pointer-events: none;
+}
+
+.rico-sg-tooltip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 6px 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  pointer-events: none;
+  word-break: break-all;
+}
+
+.rico-sg-tooltip > div:first-child {
+  color: var(--text-normal);
+}
+
+.rico-sg-tooltip.is-hidden {
+  display: none;
+}
+
+.rico-sg-status {
+  padding: 6px 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Overlay: loading, empty and error states for the semantic graph.
+   Sits on top of the stage, because a thin status bar at the bottom is too
+   easy to miss exactly when the panel is otherwise blank. */
+
+.rico-sg-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: var(--background-primary);
+}
+
+.rico-sg-overlay.is-hidden {
+  display: none;
+}
+
+.rico-sg-overlay-icon {
+  display: flex;
+  color: var(--text-faint);
+}
+
+.rico-sg-overlay-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.rico-sg-overlay.is-error .rico-sg-overlay-icon {
+  color: var(--text-error);
+}
+
+.rico-sg-overlay-text {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  max-width: 260px;
+  line-height: 1.4;
+}
+
+.rico-sg-overlay.is-error .rico-sg-overlay-text {
+  color: var(--text-normal);
+}
+
+.rico-sg-overlay-button {
+  padding: 5px 12px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  border: none;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.rico-sg-overlay-button:hover {
+  background: var(--interactive-accent-hover, var(--interactive-accent));
+}
+
+.rico-sg-spinner {
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid var(--background-modifier-border);
+  border-top-color: var(--interactive-accent);
+  border-radius: 50%;
+  animation: rico-sg-spin 700ms linear infinite;
+}
+
+@keyframes rico-sg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Respect the system setting: a looping spinner is a common migraine trigger. */
+@media (prefers-reduced-motion: reduce) {
+  .rico-sg-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+/* The raw-data list: ranked rows without the layout, SVG or viewport
+   transform, so a blank canvas can be told apart from missing data. */
+
+.rico-sg-list {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--background-primary);
+  font-size: var(--font-ui-smaller);
+}
+
+.rico-sg-list.is-hidden {
+  display: none;
+}
+
+.rico-sg-list-title {
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+  margin-bottom: 6px;
+}
+
+.rico-sg-list-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+}
+
+.rico-sg-fact {
+  display: contents;
+}
+
+.rico-sg-fact-label {
+  color: var(--text-muted);
+}
+
+.rico-sg-fact-value {
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+}
+
+.rico-sg-list-empty {
+  padding: 10px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.rico-sg-list-row {
+  display: flex;
+  gap: 8px;
+  padding: 6px 4px;
+  border-top: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+}
+
+.rico-sg-list-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.rico-sg-list-score {
+  flex: 0 0 auto;
+  font-family: var(--font-monospace);
+  color: var(--interactive-accent);
+}
+
+.rico-sg-list-body {
+  min-width: 0;
+}
+
+.rico-sg-list-name {
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rico-sg-list-meta {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  word-break: break-all;
+}
