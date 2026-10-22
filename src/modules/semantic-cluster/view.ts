@@ -1,7 +1,17 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf, setIcon } from "obsidian";
 import type { VectorStore } from "../semantic-search/store";
 import type { RicoPluginSettings } from "../../types";
-import { clusterVaultAsync, type ClusterMap } from "./cluster-all";
+import type { ClusterMap, ClusterNote } from "./cluster-all";
+import {
+  MIN_DRILL_SIZE,
+  buildLevel,
+  canDrill,
+  formatCrumbs,
+  levelCrumbs,
+  notesOf,
+  truncateTo,
+  type Level,
+} from "./drill";
 import { buildExcluder } from "./exclude";
 import { layoutClusters, type ClusterLayout } from "./layout";
 import { ClusterRenderer, type ViewTransform } from "./renderer";
@@ -14,17 +24,20 @@ const MAX_ZOOM = 6;
 const FIT_PADDING = 36;
 /** Past this many notes the map still draws, but says it may be slow. */
 const LARGE_VAULT = 8000;
+/** The most groups the control will ask for. */
+const MAX_GROUPS = 40;
 
 /**
- * What the last run produced, kept outside the view.
+ * What earlier runs produced, kept outside the view.
  *
- * Closing and reopening the tab would otherwise recluster the whole vault
- * every time. The signature changes whenever the index or the settings that
- * shape the result change, which is the only time the answer can differ.
+ * Closing and reopening the tab, or climbing back up the breadcrumb, would
+ * otherwise recluster the same notes again. Each entry is keyed by the notes
+ * and the group count it was made for; the signature changes whenever the
+ * index or the settings that shape the result change, which empties the lot.
  */
 export interface ClusterCache {
   signature: string;
-  map: ClusterMap | null;
+  maps: Map<string, ClusterMap>;
   /** Indexed notes left out by the exclude rules. */
   excluded: number;
   /** Indexed notes before exclusion. */
@@ -39,6 +52,8 @@ interface ViewDeps {
    * read it again, for a recompute after the search module re-indexed.
    */
   ready: (fresh?: boolean) => Promise<void>;
+  /** Persist settings; the top level's group count is remembered between sessions. */
+  save: () => Promise<void>;
   cache: ClusterCache;
 }
 
@@ -46,7 +61,9 @@ interface ViewDeps {
  * Every note in the vault, grouped by topic and drawn as clouds of dots.
  *
  * Read-only: it reads the semantic search index and never embeds anything or
- * writes to a note. Clicking a dot opens the note; clicking a cloud zooms to it.
+ * writes to a note. Clicking a dot opens the note; clicking a cloud goes inside
+ * it and splits its notes again, as many ways as the control above the map says.
+ * Shift-click only moves the camera.
  */
 export class SemanticClusterView extends ItemView {
   private contextEl!: HTMLElement;
@@ -54,10 +71,18 @@ export class SemanticClusterView extends ItemView {
   private cardEl!: HTMLElement;
   private overlayEl!: HTMLElement;
   private statusEl!: HTMLElement;
+  private crumbsEl!: HTMLElement;
+  private inputEl!: HTMLInputElement;
+  private autoEl!: HTMLButtonElement;
+  private upEl!: HTMLButtonElement;
   private renderer!: ClusterRenderer;
 
+  /** Where the user has gone: the whole vault first, then each group entered. */
+  private levels: Level[] = [];
   private map: ClusterMap | null = null;
   private layout: ClusterLayout | null = null;
+  /** Indexed notes the exclude rules left out, for the status line. */
+  private excluded = 0;
 
   private zoom = 1;
   private panX = 0;
@@ -156,8 +181,27 @@ export class SemanticClusterView extends ItemView {
     header.createDiv({ cls: "rico-sc-title", text: "Semantic cluster" });
     this.contextEl = header.createDiv({ cls: "rico-sc-context" });
     const actions = header.createDiv({ cls: "rico-sc-actions" });
-    this.iconButton(actions, "refresh-cw", "Recompute the clusters", () => void this.run(true));
+    this.upEl = this.iconButton(actions, "arrow-left", "Up one level (Esc)", () => this.up());
+    this.iconButton(actions, "refresh-cw", "Re-read the index and start again from the top", () => void this.run(true));
     this.iconButton(actions, "maximize", "Fit to panel", () => this.fit());
+
+    // Where you are (clickable) on the left, how many groups to split into on the right.
+    const bar = root.createDiv({ cls: "rico-sc-bar" });
+    this.crumbsEl = bar.createDiv({ cls: "rico-sc-crumbs" });
+    const control = bar.createDiv({ cls: "rico-sc-control" });
+    control.createSpan({ cls: "rico-sc-control-label", text: "Clusters" });
+    this.inputEl = control.createEl("input", {
+      cls: "rico-sc-control-input",
+      attr: { type: "number", min: "1", max: String(MAX_GROUPS), step: "1", "aria-label": "Number of clusters" },
+    });
+    // "change" fires on Enter, on blur and on the spinner arrows alike.
+    this.inputEl.addEventListener("change", () => this.commitInput());
+    this.autoEl = control.createEl("button", {
+      cls: "rico-sc-control-auto",
+      text: "Auto",
+      attr: { title: "Let the plugin choose how many clusters" },
+    });
+    this.autoEl.addEventListener("click", () => void this.setRequested(0));
 
     this.stageEl = root.createDiv({ cls: "rico-sc-stage" });
     this.renderer = new ClusterRenderer(this.stageEl);
@@ -185,13 +229,19 @@ export class SemanticClusterView extends ItemView {
     void this.run(false).catch((err) => this.reportError(err));
   }
 
-  private iconButton(parent: HTMLElement, icon: string, label: string, onClick: () => void): void {
+  private iconButton(
+    parent: HTMLElement,
+    icon: string,
+    label: string,
+    onClick: () => void,
+  ): HTMLButtonElement {
     const button = parent.createEl("button", {
       cls: "rico-sc-icon-button",
       attr: { "aria-label": label, title: label },
     });
     setIcon(button, icon);
     button.addEventListener("click", onClick);
+    return button;
   }
 
   // --- interaction ---------------------------------------------------------
@@ -226,6 +276,15 @@ export class SemanticClusterView extends ItemView {
     this.registerDomEvent(window, "mouseup", () => {
       this.drag = null;
     });
+    // Esc goes up a level, but not while typing a number in the control.
+    this.registerDomEvent(this.contentEl, "keydown", (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if ((event.target as HTMLElement | null)?.tagName === "INPUT") return;
+      this.up();
+    });
+    // A stage that can take focus is what lets the keyboard reach this view.
+    this.stageEl.tabIndex = 0;
+    this.registerDomEvent(el, "mousedown", () => this.stageEl.focus({ preventScroll: true }));
   }
 
   private onWheel(event: WheelEvent): void {
@@ -284,8 +343,14 @@ export class SemanticClusterView extends ItemView {
       return;
     }
     const { cluster, dot } = this.under(event);
-    if (dot) void this.open(dot);
-    else if (cluster !== null) this.zoomTo(cluster);
+    if (dot) {
+      void this.open(dot);
+      return;
+    }
+    if (cluster === null) return;
+    // Shift keeps the old behaviour: just bring the camera closer.
+    if (event.shiftKey || (this.map?.clusters.length ?? 0) <= 1) this.zoomTo(cluster);
+    else void this.drillInto(cluster);
   }
 
   /** Open in a new tab: this view is itself a tab, so reusing the current leaf would replace it. */
@@ -353,14 +418,13 @@ export class SemanticClusterView extends ItemView {
 
   // --- data ----------------------------------------------------------------
 
-  /** What shapes the answer; when this is unchanged, the last answer still holds. */
+  /** What shapes the answer; when this is unchanged, earlier answers still hold. */
   private signature(settings: RicoPluginSettings, kept: { mtime: number }[]): string {
     let stamp = 0;
     for (const entry of kept) stamp += entry.mtime;
     return [
       kept.length,
       stamp,
-      settings.semanticClusterCount,
       settings.semanticClusterMinSize,
       settings.semanticSearchExcludeFilter,
       settings.semanticClusterExclude,
@@ -370,7 +434,17 @@ export class SemanticClusterView extends ItemView {
     ].join("|");
   }
 
-  /** Cluster the vault (or reuse the last result) and draw it. */
+  private makeLevel(name: string, notes: ClusterNote[], requested: number): Promise<Level> {
+    return buildLevel(
+      name,
+      notes,
+      requested,
+      { minSize: this.deps.settings().semanticClusterMinSize },
+      this.deps.cache.maps,
+    );
+  }
+
+  /** Re-read the index, cluster the whole vault and show the top level. */
   async run(force = false): Promise<void> {
     const token = ++this.runToken;
     const settings = this.deps.settings();
@@ -399,46 +473,181 @@ export class SemanticClusterView extends ItemView {
         return;
       }
 
+      // A changed index or changed rules make every earlier answer suspect.
       const cache = this.deps.cache;
       const signature = this.signature(settings, kept);
-      let map = !force && cache.signature === signature ? cache.map : null;
-
-      if (!map) {
-        this.showLoading(`Clustering ${kept.length} notes…`);
-        map = await clusterVaultAsync(
-          kept.map((entry) => ({ path: entry.path, vec: entry.vec, text: entry.text })),
-          { k: settings.semanticClusterCount, minSize: settings.semanticClusterMinSize },
-        );
-        if (token !== this.runToken) return;
+      if (force || cache.signature !== signature) {
+        cache.maps.clear();
         cache.signature = signature;
-        cache.map = map;
       }
       cache.excluded = excluded;
       cache.total = entries.length;
+      this.excluded = excluded;
 
-      this.map = map;
-      this.layout = layoutClusters(map);
-      this.renderer.build(map, this.layout);
-      this.hideOverlay();
-      this.fit();
-
-      const parts = [
-        `${map.of.size} notes`,
-        `${map.clusters.length} groups`,
-        `${excluded} excluded`,
-      ];
-      if (map.unusable) parts.push(`${map.unusable} without a vector`);
-      this.contextEl.setText(parts.join(" · "));
-      this.statusEl.setText(
-        kept.length > LARGE_VAULT
-          ? `${parts.join(" · ")} — a large vault, so panning may feel slow.`
-          : parts.join(" · "),
+      this.showLoading(`Clustering ${kept.length} notes…`);
+      const root = await this.makeLevel(
+        "All notes",
+        kept.map((entry) => ({ path: entry.path, vec: entry.vec, text: entry.text })),
+        settings.semanticClusterCount,
       );
-      if (force) new Notice(`Semantic cluster: ${map.clusters.length} groups from ${map.of.size} notes.`, 2500);
+      if (token !== this.runToken) return;
+
+      this.levels = [root];
+      this.showLevel();
+      if (force) {
+        new Notice(
+          `Semantic cluster: ${root.map.clusters.length} groups from ${root.map.of.size} notes.`,
+          2500,
+        );
+      }
     } catch (err) {
       if (token !== this.runToken) return;
       this.reportError(err);
     }
+  }
+
+  // --- levels --------------------------------------------------------------
+
+  private get current(): Level | null {
+    return this.levels[this.levels.length - 1] ?? null;
+  }
+
+  /** Lay out and draw the level the user is on, and bring the bar up to date. */
+  private showLevel(): void {
+    const level = this.current;
+    if (!level) return;
+    const map = level.map;
+
+    this.map = map;
+    this.layout = layoutClusters(map);
+    // One cloud means the notes themselves are on screen, so each dot gets its title.
+    this.renderer.build(map, this.layout, { dotLabels: map.clusters.length === 1 });
+    this.hideOverlay();
+    this.fit();
+    this.renderBar();
+
+    const groups = map.clusters.length;
+    const parts = [`${map.of.size} notes`, `${groups} ${groups === 1 ? "group" : "groups"}`];
+    if (this.levels.length === 1) parts.push(`${this.excluded} excluded`);
+    if (map.unusable) parts.push(`${map.unusable} without a vector`);
+    const text = parts.join(" · ");
+    this.contextEl.setText(text);
+    this.statusEl.setText(
+      level.notes.length > LARGE_VAULT ? `${text} — a large vault, so panning may feel slow.` : text,
+    );
+  }
+
+  /** Breadcrumb on the left, group-count control on the right, back button state. */
+  private renderBar(): void {
+    if (!this.crumbsEl) return;
+    this.crumbsEl.empty();
+    const crumbs = levelCrumbs(this.levels);
+    crumbs.forEach((crumb, i) => {
+      if (i > 0) this.crumbsEl.createSpan({ cls: "rico-sc-crumb-sep", text: "›" });
+      const target = crumb.level;
+      if (target === null) {
+        this.crumbsEl.createSpan({ cls: "rico-sc-crumb is-current", text: crumb.label });
+        return;
+      }
+      const link = this.crumbsEl.createEl("button", {
+        cls: "rico-sc-crumb",
+        text: crumb.label,
+        attr: { title: "Go back to this level" },
+      });
+      link.addEventListener("click", () => this.goTo(target));
+    });
+    this.crumbsEl.setAttribute("title", formatCrumbs(this.levels));
+
+    const level = this.current;
+    if (level) {
+      // Empty means automatic; the placeholder shows what that came to.
+      this.inputEl.value = level.requested > 0 ? String(level.requested) : "";
+      this.inputEl.placeholder = String(level.map.clusters.length);
+      this.autoEl.toggleClass("is-active", level.requested === 0);
+    }
+    this.upEl.disabled = this.levels.length <= 1;
+  }
+
+  /** Read the number box: a number sets the count, an empty box means automatic. */
+  private commitInput(): void {
+    const raw = this.inputEl.value.trim();
+    if (!raw) {
+      void this.setRequested(0);
+      return;
+    }
+    const parsed = Math.floor(Number(raw));
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      this.renderBar();
+      return;
+    }
+    void this.setRequested(Math.min(MAX_GROUPS, parsed));
+  }
+
+  /** Split the level on screen into `requested` groups (0 = choose for me). */
+  private async setRequested(requested: number): Promise<void> {
+    const level = this.current;
+    if (!level) return;
+    if (requested === level.requested) {
+      this.renderBar();
+      return;
+    }
+
+    const token = ++this.runToken;
+    this.showLoading(`Clustering ${level.notes.length} notes…`);
+    try {
+      const next = await this.makeLevel(level.name, level.notes, requested);
+      if (token !== this.runToken) return;
+      // Only this level changes; anything entered beneath it no longer applies.
+      this.levels[this.levels.length - 1] = next;
+      // The top level's choice is remembered, so reopening the tab keeps it.
+      if (this.levels.length === 1) {
+        this.deps.settings().semanticClusterCount = requested;
+        await this.deps.save();
+      }
+      this.showLevel();
+    } catch (err) {
+      if (token !== this.runToken) return;
+      this.reportError(err);
+    }
+  }
+
+  /** Go inside a group and split its notes again. */
+  private async drillInto(clusterId: number): Promise<void> {
+    const level = this.current;
+    const group = level?.map.clusters[clusterId];
+    if (!level || !group) return;
+    if (!canDrill(group.members.length)) {
+      new Notice(
+        `“${group.name}” has ${group.members.length} notes, too few to split (it needs ${MIN_DRILL_SIZE}). Click a dot to open one.`,
+        4000,
+      );
+      return;
+    }
+
+    const token = ++this.runToken;
+    this.showLoading(`Clustering ${group.members.length} notes…`);
+    try {
+      const next = await this.makeLevel(group.name, notesOf(level, clusterId), 0);
+      if (token !== this.runToken) return;
+      this.levels.push(next);
+      this.showLevel();
+    } catch (err) {
+      if (token !== this.runToken) return;
+      this.reportError(err);
+    }
+  }
+
+  /** Climb back to the level at `index`, dropping everything deeper. */
+  private goTo(index: number): void {
+    if (index >= this.levels.length - 1) return;
+    // Cancels any split still being computed for a level that is about to go.
+    this.runToken++;
+    this.levels = truncateTo(this.levels, index);
+    this.showLevel();
+  }
+
+  private up(): void {
+    if (this.levels.length > 1) this.goTo(this.levels.length - 2);
   }
 
   private runIndexCommand(): void {

@@ -130,7 +130,11 @@ export interface RicoPluginSettings {
   semanticGraphFollowActive: boolean;
   /** Semantic cluster: every note in the vault, grouped by topic and drawn as clouds. */
   enableSemanticCluster: boolean;
-  /** How many groups to make; 0 chooses from the vault's size. */
+  /**
+   * How many groups the top level of the map is split into; 0 chooses from the
+   * vault's size. Set from the control on the map itself, not from Settings,
+   * and remembered so reopening the tab keeps it.
+   */
   semanticClusterCount: number;
   /** Groups smaller than this are folded into their nearest neighbour. */
   semanticClusterMinSize: number;

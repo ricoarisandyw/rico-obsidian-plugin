@@ -87,7 +87,7 @@ export function registerSemanticCluster(plugin: PluginWithSettings): void {
 
   // Loaded when the map is first opened, not at startup: this is a whole-vault
   // read and most sessions never open the map.
-  const cache: ClusterCache = { signature: "", map: null, excluded: 0, total: 0 };
+  const cache: ClusterCache = { signature: "", maps: new Map(), excluded: 0, total: 0 };
 
   plugin.registerView(
     SEMANTIC_CLUSTER_VIEW_TYPE,
@@ -100,6 +100,7 @@ export function registerSemanticCluster(plugin: PluginWithSettings): void {
           if (fresh) loadedKey = "";
           return loadIndexForCurrentModel();
         },
+        save: () => plugin.savePluginSettings(),
         cache,
       }),
   );
@@ -150,8 +151,7 @@ export function registerSemanticCluster(plugin: PluginWithSettings): void {
         buildCalls: String(ours?.debug.buildCalls ?? "n/a"),
         lastError: ours?.debug.lastError || "(none)",
         indexedVectors: String(store.size),
-        cachedGroups: String(cache.map?.clusters.length ?? 0),
-        cachedNotes: String(cache.map?.of.size ?? 0),
+        cachedLevels: String(cache.maps.size),
         excluded: String(cache.excluded),
         contentElSize: size(el),
         stageSize: size(stage),

@@ -1,4 +1,5 @@
 import { clusterHue } from "../semantic-graph/cluster";
+import { labelFor } from "../semantic-graph/logic";
 import type { ClusterMap } from "./cluster-all";
 import { blobPath } from "./hull";
 import { DOT_RADIUS, type ClusterLayout, type Point } from "./layout";
@@ -25,6 +26,10 @@ const MAX_LABEL = 32;
 const LABEL_SIZE = 12;
 /** Below this zoom the names crowd each other, so they are hidden. */
 const LABEL_MIN_ZOOM = 0.3;
+/** Note titles beside the dots appear only this close, or they would overlap. */
+const DOT_LABEL_MIN_ZOOM = 2.2;
+/** Size of a note title on screen, in pixels. */
+const DOT_LABEL_SIZE = 11;
 /** Width of the soft rim around a blob, in graph units. */
 const BLOB_PAD = 22;
 /** How far outside its disc a group still counts as under the pointer. */
@@ -55,6 +60,11 @@ export class ClusterRenderer {
   private dotEls = new Map<string, SVGCircleElement>();
   private hotDot: string | null = null;
   private hotCluster: number | null = null;
+  /** Note titles, present only when the level asked for them. */
+  private dotLabels: SVGTextElement[] = [];
+  /** What the labels were last set up for, so a pan does not redo them all. */
+  private lastZoom = 0;
+  private lastLabelsOn: boolean | null = null;
 
   constructor(parent: HTMLElement) {
     this.el = parent.createSvg("svg", { cls: "rico-sc-svg" });
@@ -92,7 +102,7 @@ export class ClusterRenderer {
   }
 
   /** Throw the old drawing away and make one group per cluster. */
-  build(map: ClusterMap, layout: ClusterLayout): void {
+  build(map: ClusterMap, layout: ClusterLayout, options: { dotLabels?: boolean } = {}): void {
     this.linksEl.empty();
     this.clustersEl.empty();
     this.parts.clear();
@@ -100,6 +110,9 @@ export class ClusterRenderer {
     this.members.clear();
     this.hotDot = null;
     this.hotCluster = null;
+    this.dotLabels = [];
+    this.lastZoom = 0;
+    this.lastLabelsOn = null;
     this.layout = layout;
 
     const count = map.clusters.length;
@@ -149,6 +162,16 @@ export class ClusterRenderer {
         dot.setAttribute("r", String(DOT_RADIUS));
         dot.setAttribute("fill", colour);
         this.dotEls.set(point, dot);
+
+        if (options.dotLabels) {
+          const title = g.createSvg("text", { cls: "rico-sc-dot-label" });
+          title.textContent = labelFor(point);
+          title.setAttribute("x", String(spot.x + DOT_RADIUS + 3));
+          title.setAttribute("y", String(spot.y));
+          title.setAttribute("dominant-baseline", "middle");
+          title.setAttribute("display", "none");
+          this.dotLabels.push(title);
+        }
       }
 
       const label = g.createSvg("text", { cls: "rico-sc-label" });
@@ -167,11 +190,23 @@ export class ClusterRenderer {
       "transform",
       `translate(${this.width / 2 + t.panX} ${this.height / 2 + t.panY}) scale(${t.zoom})`,
     );
+    // Labels depend on the zoom, not the pan, so a drag skips all of this.
+    if (t.zoom === this.lastZoom && showLabels === this.lastLabelsOn) return;
+    this.lastZoom = t.zoom;
+    this.lastLabelsOn = showLabels;
+
     const visible = showLabels && t.zoom >= LABEL_MIN_ZOOM;
     const size = String(LABEL_SIZE / t.zoom);
     for (const { label } of this.parts.values()) {
       label.setAttribute("font-size", size);
       label.setAttribute("display", visible ? "" : "none");
+    }
+
+    const titlesOn = showLabels && t.zoom >= DOT_LABEL_MIN_ZOOM;
+    const titleSize = String(DOT_LABEL_SIZE / t.zoom);
+    for (const title of this.dotLabels) {
+      title.setAttribute("font-size", titleSize);
+      title.setAttribute("display", titlesOn ? "" : "none");
     }
   }
 

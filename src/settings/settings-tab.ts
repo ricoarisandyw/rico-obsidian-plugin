@@ -510,7 +510,8 @@ export class RicoSettingTab extends PluginSettingTab {
       name: "Semantic cluster",
       desc:
         "Every note in the vault, grouped by topic and drawn as clouds of dots in a tab. " +
-        "Reads the semantic search index, so index your vault first. " +
+        "Click a cloud to go inside and split it again; the number of clusters is set " +
+        "on the map itself. Reads the semantic search index, so index your vault first. " +
         "Changes apply after reloading the plugin.",
     });
 
@@ -519,21 +520,6 @@ export class RicoSettingTab extends PluginSettingTab {
       name: "Show group names",
       desc: "Draw each group's name above its cloud once you zoom in far enough to read it.",
     });
-
-    new Setting(containerEl)
-      .setName("Number of groups")
-      .setDesc("How many groups to split the vault into. 0 chooses from the vault's size (default).")
-      .addText((text) =>
-        text
-          .setPlaceholder("0")
-          .setValue(String(this.plugin.settings.semanticClusterCount))
-          .onChange(async (val) => {
-            const parsed = Number(val);
-            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return;
-            this.plugin.settings.semanticClusterCount = Math.floor(parsed);
-            await this.plugin.savePluginSettings();
-          }),
-      );
 
     new Setting(containerEl)
       .setName("Smallest group")
