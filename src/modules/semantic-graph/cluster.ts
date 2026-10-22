@@ -57,17 +57,18 @@ function dot(a: Float64Array, b: Float64Array): number {
 const MAX_ITERATIONS = 50;
 
 /**
- * Cluster id per vector, or -1 where the vector is missing or unusable.
+ * The k-means work itself, as a generator that pauses after each iteration.
  *
- * Clusters are numbered by first appearance, so with results sorted by score
- * the nearest neighbour is always in cluster 0. With fewer than two clusters'
- * worth of vectors there is nothing to separate, and everything comes back -1.
+ * Neighbour grouping finishes instantly, but clustering a whole vault is
+ * thousands of vectors, and running that in one go freezes Obsidian. Written
+ * as a generator, the same code serves both callers: the plain function runs it
+ * straight through, the async one lets the UI breathe between iterations.
  */
-export function kmeansCosine(
+function* kmeansRun(
   vectors: (Vector | null | undefined)[],
   k: number,
-  seed = 1,
-): number[] {
+  seed: number,
+): Generator<void, number[], void> {
   const units = vectors.map((vec) => (vec ? toUnit(vec) : null));
   const valid = units.flatMap((unit, i) => (unit ? [i] : []));
   const count = Math.min(Math.floor(k), valid.length);
@@ -80,6 +81,7 @@ export function kmeansCosine(
   // which stops two centres landing in the same blob.
   const centres: Float64Array[] = [units[valid[Math.floor(rand() * valid.length)]!]!];
   while (centres.length < count) {
+    yield;
     const weights = valid.map((i) => {
       let best = -Infinity;
       for (const centre of centres) best = Math.max(best, dot(units[i]!, centre));
@@ -106,6 +108,7 @@ export function kmeansCosine(
 
   const assign = new Array<number>(valid.length).fill(-1);
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+    yield;
     let changed = false;
     valid.forEach((i, j) => {
       let best = 0;
@@ -149,6 +152,76 @@ export function kmeansCosine(
     result[i] = renumber.get(assign[j])!;
   });
   return result;
+}
+
+/**
+ * Cluster id per vector, or -1 where the vector is missing or unusable.
+ *
+ * Clusters are numbered by first appearance, so with results sorted by score
+ * the nearest neighbour is always in cluster 0. With fewer than two clusters'
+ * worth of vectors there is nothing to separate, and everything comes back -1.
+ */
+export function kmeansCosine(
+  vectors: (Vector | null | undefined)[],
+  k: number,
+  seed = 1,
+): number[] {
+  const run = kmeansRun(vectors, k, seed);
+  let step = run.next();
+  while (!step.done) step = run.next();
+  return step.value;
+}
+
+/** Hand control back to the browser for a moment. */
+const nextTick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/**
+ * Same answer as `kmeansCosine`, but pauses between iterations so a large
+ * vault does not freeze the interface while it runs.
+ */
+export async function kmeansCosineAsync(
+  vectors: (Vector | null | undefined)[],
+  k: number,
+  seed = 1,
+  pause: () => Promise<void> = nextTick,
+): Promise<number[]> {
+  const run = kmeansRun(vectors, k, seed);
+  let step = run.next();
+  while (!step.done) {
+    await pause();
+    step = run.next();
+  }
+  return step.value;
+}
+
+/**
+ * Unit-length mean of each cluster's vectors, indexed by cluster id.
+ *
+ * A cluster with no usable members comes back null rather than as a zero
+ * vector, which would compare as similar to nothing and poison any lookup.
+ */
+export function centroidsOf(
+  vectors: (Vector | null | undefined)[],
+  assign: number[],
+  count: number,
+): (Float64Array | null)[] {
+  const sums: (Float64Array | null)[] = Array.from({ length: count }, () => null);
+  vectors.forEach((vec, i) => {
+    const cluster = assign[i];
+    if (!vec || cluster === undefined || cluster < 0 || cluster >= count) return;
+    const unit = toUnit(vec);
+    if (!unit) return;
+    const sum = sums[cluster] ?? (sums[cluster] = new Float64Array(unit.length));
+    for (let d = 0; d < unit.length; d++) sum[d] += unit[d];
+  });
+  return sums.map((sum) => (sum ? toUnit(sum) : null));
+}
+
+/** Cosine similarity of two vectors of any length; 0 when either is unusable. */
+export function cosineSimilarity(a: Vector, b: Vector): number {
+  const ua = toUnit(a);
+  const ub = toUnit(b);
+  return ua && ub ? dot(ua, ub) : 0;
 }
 
 /**

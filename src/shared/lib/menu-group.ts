@@ -21,6 +21,8 @@ export interface MenuEntry {
   onClick: () => void;
   /** Greyed out but still visible, so the user knows the action exists. */
   disabled?: boolean;
+  /** Makes this row a nested submenu; its own `onClick` is then ignored. */
+  children?: MenuEntry[];
 }
 
 /** A `MenuItem` that may carry the undocumented submenu method. */
@@ -36,16 +38,43 @@ export function supportsSubmenu(item: MenuItem): boolean {
   return typeof (item as MaybeSubmenuItem).setSubmenu === "function";
 }
 
-/** Fill one menu with the given entries. Shared by both layouts. */
-function addEntries(menu: Menu, entries: MenuEntry[]): void {
+/**
+ * Fill one menu with the given entries. Shared by every layout.
+ *
+ * An entry with `children` becomes a nested submenu. Without submenu support
+ * its row turns into a label and the children follow it, as the group does.
+ */
+function addEntries(menu: Menu, entries: MenuEntry[], section?: string): void {
   for (const entry of entries) {
+    if (entry.children?.length) {
+      addNested(menu, entry, section);
+      continue;
+    }
     menu.addItem((item) => {
       item.setTitle(entry.title);
+      if (section) item.setSection(section);
       if (entry.icon) item.setIcon(entry.icon);
       if (entry.disabled) item.setDisabled(true);
       item.onClick(() => entry.onClick());
     });
   }
+}
+
+function addNested(menu: Menu, entry: MenuEntry, section?: string): void {
+  const children = entry.children ?? [];
+  let nested = false;
+  menu.addItem((item) => {
+    item.setTitle(entry.title);
+    if (section) item.setSection(section);
+    if (entry.icon) item.setIcon(entry.icon);
+    if (supportsSubmenu(item)) {
+      nested = true;
+      addEntries((item as MaybeSubmenuItem).setSubmenu!(), children);
+      return;
+    }
+    item.setIsLabel(true);
+  });
+  if (!nested) addEntries(menu, children, section);
 }
 
 export interface GroupOptions {
@@ -108,17 +137,7 @@ export function addGroupedItems(
     item.setSection(options.section ?? FALLBACK_SECTION);
   });
 
-  if (mode === "section") {
-    const section = options.section ?? FALLBACK_SECTION;
-    for (const entry of entries) {
-      menu.addItem((item) => {
-        item.setTitle(entry.title).setSection(section);
-        if (entry.icon) item.setIcon(entry.icon);
-        if (entry.disabled) item.setDisabled(true);
-        item.onClick(() => entry.onClick());
-      });
-    }
-  }
+  if (mode === "section") addEntries(menu, entries, options.section ?? FALLBACK_SECTION);
 
   return mode;
 }

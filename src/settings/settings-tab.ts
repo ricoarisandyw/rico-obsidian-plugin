@@ -41,6 +41,7 @@ export class RicoSettingTab extends PluginSettingTab {
     this.renderMenuGroup(containerEl);
     this.renderSemanticSearchGroup(containerEl);
     this.renderSemanticGraphGroup(containerEl);
+    this.renderSemanticClusterGroup(containerEl);
   }
 
   // ---- Groups ----
@@ -496,6 +497,71 @@ export class RicoSettingTab extends PluginSettingTab {
             const parsed = Number(val);
             if (!Number.isFinite(parsed) || parsed < 1) return;
             this.plugin.settings.semanticGraphMaxHops = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+  }
+
+  private renderSemanticClusterGroup(containerEl: HTMLElement): void {
+    this.heading(containerEl, "Semantic Cluster");
+
+    this.toggle(containerEl, {
+      key: "enableSemanticCluster",
+      name: "Semantic cluster",
+      desc:
+        "Every note in the vault, grouped by topic and drawn as clouds of dots in a tab. " +
+        "Reads the semantic search index, so index your vault first. " +
+        "Changes apply after reloading the plugin.",
+    });
+
+    this.toggle(containerEl, {
+      key: "semanticClusterShowLabels",
+      name: "Show group names",
+      desc: "Draw each group's name above its cloud once you zoom in far enough to read it.",
+    });
+
+    new Setting(containerEl)
+      .setName("Number of groups")
+      .setDesc("How many groups to split the vault into. 0 chooses from the vault's size (default).")
+      .addText((text) =>
+        text
+          .setPlaceholder("0")
+          .setValue(String(this.plugin.settings.semanticClusterCount))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return;
+            this.plugin.settings.semanticClusterCount = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Smallest group")
+      .setDesc("A group with fewer notes than this is merged into the group nearest to it (default 3).")
+      .addText((text) =>
+        text
+          .setPlaceholder("3")
+          .setValue(String(this.plugin.settings.semanticClusterMinSize))
+          .onChange(async (val) => {
+            const parsed = Number(val);
+            if (!Number.isFinite(parsed) || parsed < 1) return;
+            this.plugin.settings.semanticClusterMinSize = Math.floor(parsed);
+            await this.plugin.savePluginSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Extra folders to leave out")
+      .setDesc(
+        "Comma-separated path fragments. Always left out already: the search exclude filter, " +
+          "generated canvases, quiz folders, model and index folders, .obsidian and .trash.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("Archive/, Templates/")
+          .setValue(this.plugin.settings.semanticClusterExclude)
+          .onChange(async (val) => {
+            this.plugin.settings.semanticClusterExclude = val;
             await this.plugin.savePluginSettings();
           }),
       );

@@ -13,6 +13,9 @@ import {
 } from "./logic";
 import { getChildProcess, getVaultPath, runInMacTerminal } from "../run-in-terminal";
 
+const GROUP_TITLE = "In System Actions";
+const GROUP_ICON = "zap";
+
 function nodeRequire<T>(name: string): T | null {
   try {
     const req = (window as unknown as { require?: (m: string) => unknown }).require;
@@ -107,6 +110,10 @@ export function registerScriptActions(
         onClick: () => runAction(vaultPath, action, target, file.name),
       });
     }
-    return entries;
+    if (!entries.length) return [];
+
+    // Nested one level down so a long actions.json does not crowd the other
+    // modules' entries in the "Rico Plugin" menu.
+    return [{ title: GROUP_TITLE, icon: GROUP_ICON, onClick: () => undefined, children: entries }];
   });
 }

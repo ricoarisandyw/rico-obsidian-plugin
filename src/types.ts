@@ -128,6 +128,16 @@ export interface RicoPluginSettings {
   semanticGraphShowLabels: boolean;
   /** Re-centre on the note you open, rather than staying put. */
   semanticGraphFollowActive: boolean;
+  /** Semantic cluster: every note in the vault, grouped by topic and drawn as clouds. */
+  enableSemanticCluster: boolean;
+  /** How many groups to make; 0 chooses from the vault's size. */
+  semanticClusterCount: number;
+  /** Groups smaller than this are folded into their nearest neighbour. */
+  semanticClusterMinSize: number;
+  /** Extra comma-separated path fragments to leave out, on top of search's exclude filter. */
+  semanticClusterExclude: string;
+  /** Draw each group's name above its cloud. */
+  semanticClusterShowLabels: boolean;
   /** Gather this plugin's right-click items under one "Rico Plugin" parent. */
   groupContextMenu: boolean;
 }
@@ -227,6 +237,11 @@ export const DEFAULT_SETTINGS: RicoPluginSettings = {
   semanticGraphWeightFuzzy: 0.15,
   semanticGraphShowLabels: true,
   semanticGraphFollowActive: true,
+  enableSemanticCluster: true,
+  semanticClusterCount: 0,
+  semanticClusterMinSize: 3,
+  semanticClusterExclude: "",
+  semanticClusterShowLabels: true,
   groupContextMenu: true,
 };
 

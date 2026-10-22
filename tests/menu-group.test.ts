@@ -193,3 +193,54 @@ describe("addGroupedItems edge cases", () => {
     expect(menu.items[0].isLabel).toBeUndefined();
   });
 });
+
+describe("addGroupedItems with nested entries", () => {
+  const nested = (): MenuEntry[] => [
+    { title: "Plain", onClick: () => undefined },
+    {
+      title: "In System Actions",
+      icon: "zap",
+      onClick: () => undefined,
+      children: entries("X", "Y"),
+    },
+  ];
+
+  it("opens a second-level submenu for an entry with children", () => {
+    const menu = menuWithSubmenu();
+    addGroupedItems(asMenu(menu), nested());
+    const group = menu.items[0].submenu?.items;
+    expect(group?.map((i) => i.title)).toEqual(["Plain", "In System Actions"]);
+    expect(group?.[1].submenu?.items.map((i) => i.title)).toEqual(["X", "Y"]);
+  });
+
+  it("wires clicks on the nested entries", () => {
+    const menu = menuWithSubmenu();
+    const onClick = vi.fn();
+    addGroupedItems(asMenu(menu), [
+      { title: "Group", onClick: () => undefined, children: [{ title: "X", onClick }] },
+    ]);
+    menu.items[0].submenu?.items[0].submenu?.items[0].click?.();
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it("lists the children after a label when submenus are unsupported", () => {
+    const menu = menuWithoutSubmenu();
+    addGroupedItems(asMenu(menu), nested());
+    expect(menu.items.map((i) => i.title)).toEqual([
+      "Rico Plugin",
+      "Plain",
+      "In System Actions",
+      "X",
+      "Y",
+    ]);
+    expect(menu.items[2].isLabel).toBe(true);
+    expect(new Set(menu.items.map((i) => i.section)).size).toBe(1);
+  });
+
+  it("nests on the root menu when flat is asked for", () => {
+    const menu = menuWithSubmenu();
+    addGroupedItems(asMenu(menu), nested(), { flat: true });
+    expect(menu.items.map((i) => i.title)).toEqual(["Plain", "In System Actions"]);
+    expect(menu.items[1].submenu?.items).toHaveLength(2);
+  });
+});

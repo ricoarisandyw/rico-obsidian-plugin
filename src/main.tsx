@@ -36,6 +36,7 @@ import { registerBlockReference } from "./modules/block-reference";
 import { registerBlockReferencePanels } from "./modules/block-reference/panels";
 import { registerSemanticSearch } from "./modules/semantic-search";
 import { registerSemanticGraph } from "./modules/semantic-graph";
+import { registerSemanticCluster } from "./modules/semantic-cluster";
 import { FileMenuRegistry } from "./shared/lib/menu-registry";
 import { registerMermaidLinks } from "./modules/mermaid-links";
 import { removeAllRails } from "./modules/canvas/tool-rail";
@@ -245,6 +246,15 @@ export default class RicoObsidianPlugin extends Plugin {
         registerSemanticGraph(this);
       } catch (err) {
         console.error(">>> semantic-graph: failed to register", err);
+      }
+    }
+
+    // 12d. Semantic Cluster (main-area tab: the whole vault grouped by topic).
+    if (this.settings.enableSemanticCluster) {
+      try {
+        registerSemanticCluster(this);
+      } catch (err) {
+        console.error(">>> semantic-cluster: failed to register", err);
       }
     }
     if (this.settings.enableBlockReferencePanels) {

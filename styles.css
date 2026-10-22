@@ -3068,3 +3068,263 @@
   font-size: var(--font-ui-smaller);
   word-break: break-all;
 }
+
+/* ==========================================================================
+   Semantic Cluster — every note in the vault, grouped by topic
+   ========================================================================== */
+
+/* .rico-sc below is positioned against this, so it must be a containing block. */
+.workspace-leaf-content[data-type="rico-semantic-cluster"] .view-content {
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.rico-sc {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rico-sc-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 6px;
+}
+
+.rico-sc-title {
+  flex: none;
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+
+.rico-sc-context {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rico-sc-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.rico-sc-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.rico-sc-icon-button:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* The stage takes whatever height is left, and keeps one of its own. */
+.rico-sc-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow: hidden;
+}
+
+.rico-sc-svg {
+  display: block;
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.rico-sc-svg:active {
+  cursor: grabbing;
+}
+
+.rico-sc-svg text {
+  pointer-events: none;
+}
+
+.rico-sc-badge {
+  font-size: 11px;
+  fill: var(--text-faint);
+}
+
+.rico-sc-link {
+  stroke: var(--text-faint);
+  vector-effect: non-scaling-stroke;
+}
+
+/* The group carries the opacity, so the rim and the middle read as one wash. */
+.rico-sc-blob {
+  opacity: 0.13;
+  transition: opacity 120ms ease;
+}
+
+.rico-sc-cluster.is-hovered .rico-sc-blob {
+  opacity: 0.26;
+}
+
+.rico-sc-dot {
+  opacity: 0.9;
+}
+
+.rico-sc-label {
+  fill: var(--text-normal);
+  font-weight: 600;
+  paint-order: stroke fill;
+  stroke: var(--background-primary);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* While one group is hovered, the rest step back. */
+.rico-sc-svg.has-hover .rico-sc-cluster:not(.is-hovered) {
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+/* The card at the top of the map: group name and how many notes it holds. */
+.rico-sc-card {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 240px;
+  max-width: min(520px, calc(100% - 24px));
+  padding: 8px 14px;
+  text-align: center;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
+  pointer-events: none;
+}
+
+.rico-sc-card.is-hidden {
+  display: none;
+}
+
+.rico-sc-card-title {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+
+.rico-sc-card-count {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.rico-sc-card-path {
+  margin-top: 2px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  word-break: break-all;
+}
+
+.rico-sc-status {
+  padding: 6px 12px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Loading, empty and error states, over the stage. */
+.rico-sc-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: var(--background-primary);
+}
+
+.rico-sc-overlay.is-hidden {
+  display: none;
+}
+
+.rico-sc-overlay-icon {
+  display: flex;
+  color: var(--text-faint);
+}
+
+.rico-sc-overlay-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.rico-sc-overlay.is-error .rico-sc-overlay-icon {
+  color: var(--text-error);
+}
+
+.rico-sc-overlay-text {
+  max-width: 320px;
+  font-size: var(--font-ui-small);
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.rico-sc-overlay.is-error .rico-sc-overlay-text {
+  color: var(--text-normal);
+}
+
+.rico-sc-overlay-button {
+  padding: 5px 12px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  border: none;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.rico-sc-overlay-button:hover {
+  background: var(--interactive-accent-hover, var(--interactive-accent));
+}
+
+.rico-sc-spinner {
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid var(--background-modifier-border);
+  border-top-color: var(--interactive-accent);
+  border-radius: 50%;
+  animation: rico-sc-spin 700ms linear infinite;
+}
+
+@keyframes rico-sc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A looping spinner is a common migraine trigger; honour the system setting. */
+@media (prefers-reduced-motion: reduce) {
+  .rico-sc-spinner {
+    animation-duration: 2.4s;
+  }
+  .rico-sc-blob,
+  .rico-sc-svg.has-hover .rico-sc-cluster:not(.is-hovered) {
+    transition: none;
+  }
+}
