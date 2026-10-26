@@ -4,6 +4,7 @@ import {
   buildClusterMap,
   clusterVault,
   clusterVaultAsync,
+  parseStopwords,
   tokenize,
   type ClusterNote,
 } from "../src/modules/semantic-cluster/cluster-all";
@@ -201,6 +202,62 @@ describe("naming", () => {
     expect(work.members[0]).toBe("work/central.md");
   });
 
+  describe("when the nearest note is generic", () => {
+    const group = (readmePath: string, otherText: string): ClusterNote[] => [
+      { path: readmePath, vec: [1, 0, 0], text: "README" },
+      { path: "billing/Invoice bulanan.md", vec: [1, 0.3, 0], text: "Invoice bulanan\n\ninvoice pelanggan invoice" },
+      { path: "billing/Pajak invoice.md", vec: [1, -0.3, 0], text: "Pajak invoice\n\ninvoice pajak invoice" },
+      { path: "other/a.md", vec: [0, 0, 1], text: otherText },
+      { path: "other/b.md", vec: [0, 0.1, 1], text: otherText },
+      { path: "other/c.md", vec: [0, -0.1, 1], text: otherText },
+    ];
+
+    it("prefers a candidate whose title carries the group's keywords over README", () => {
+      const map = clusterVault(group("billing/README.md", "design layout design layout"), { k: 2, minSize: 1 });
+      const billing = map.clusters.find((c) => c.members.includes("billing/README.md"))!;
+      expect(billing.members[0]).toBe("billing/README.md");
+      expect(billing.name).not.toBe("README");
+      expect(billing.name).toMatch(/invoice/i);
+      expect(billing.namePath).toBe("billing/Pajak invoice.md");
+    });
+
+    it("falls back to the folder name when no title says anything", () => {
+      const notes: ClusterNote[] = [
+        { path: "billing/README.md", vec: [1, 0, 0] },
+        { path: "billing/index.md", vec: [1, 0.3, 0] },
+        { path: "billing/2024-01-05.md", vec: [1, -0.3, 0] },
+        { path: "other/a.md", vec: [0, 0, 1] },
+        { path: "other/b.md", vec: [0, 0.1, 1] },
+        { path: "other/c.md", vec: [0, -0.1, 1] },
+      ];
+      const map = clusterVault(notes, { k: 2, minSize: 1 });
+      const billing = map.clusters.find((c) => c.members.includes("billing/README.md"))!;
+      expect(billing.name).toBe("billing");
+      expect(billing.namePath).toBeNull();
+    });
+
+    it("keeps the generic title when it sits at the vault root", () => {
+      const notes: ClusterNote[] = [
+        { path: "README.md", vec: [1, 0, 0] },
+        { path: "a.md", vec: [1, 0.3, 0] },
+        { path: "b.md", vec: [1, -0.3, 0] },
+        { path: "other/a.md", vec: [0, 0, 1] },
+        { path: "other/b.md", vec: [0, 0.1, 1] },
+        { path: "other/c.md", vec: [0, -0.1, 1] },
+      ];
+      const map = clusterVault(notes, { k: 2, minSize: 1 });
+      expect(map.clusters.find((c) => c.members.includes("README.md"))!.name).toBe("README");
+    });
+  });
+
+  it("gives each group up to five keywords", () => {
+    const text = "alpha beta gamma delta epsilon zeta alpha beta gamma delta epsilon zeta";
+    const notes = [...topic("hvac", 5, text), ...topic("budget", 5, "invoice tax")];
+    const map = clusterVault(notes, { k: 2, minSize: 1 });
+    const group = map.clusters.find((c) => c.members.some((m) => m.startsWith("hvac/")))!;
+    expect(group.subtitle.split(" · ")).toHaveLength(5);
+  });
+
   it("sums up a group by the words only it uses", () => {
     const map = clusterVault(vault(), { k: 3, minSize: 1 });
     const hvac = map.clusters.find((c) => c.members.some((m) => m.startsWith("hvac/")))!;
@@ -212,6 +269,50 @@ describe("naming", () => {
     const notes = [...topic("hvac", 3), ...topic("budget", 3)];
     const map = clusterVault(notes, { k: 2, minSize: 1 });
     for (const cluster of map.clusters) expect(cluster.subtitle).toBe("");
+  });
+});
+
+describe("stopwords", () => {
+  /** Four groups on separate axes; every one repeats "shared" next to its own word. */
+  const spread = (): ClusterNote[] =>
+    ["alphaword", "betaword", "gammaword", "deltaword"].flatMap((own, g) =>
+      Array.from({ length: 4 }, (_, i) => {
+        const vec = [0, 0, 0, 0, 0.01 * (i + 1)];
+        vec[g] = 1;
+        return {
+          path: `${own}/n${i}.md`,
+          vec,
+          text: `${own} ${own} shared shared`,
+        };
+      }),
+    );
+
+  it("drops a word that most groups repeat, and lists it", () => {
+    const map = clusterVault(spread(), { k: 4, minSize: 1 });
+    expect(map.autoStopwords).toContain("shared");
+    for (const cluster of map.clusters) {
+      expect(cluster.subtitle).not.toContain("shared");
+      expect(cluster.subtitle).toMatch(/word/);
+    }
+  });
+
+  it("does not guess with fewer than four groups", () => {
+    const map = clusterVault(vault(), { k: 3, minSize: 1 });
+    expect(map.autoStopwords).toEqual([]);
+  });
+
+  it("ignores the words the user adds", () => {
+    const map = clusterVault(spread(), { k: 4, minSize: 1, stopwords: ["ALPHAWORD"] });
+    for (const cluster of map.clusters) expect(cluster.subtitle).not.toContain("alphaword");
+  });
+
+  it("parses a mixed list into lowercase unique words", () => {
+    expect(parseStopwords("Aku, should\nbanyak;  aku")).toEqual(["aku", "should", "banyak"]);
+    expect(parseStopwords(undefined)).toEqual([]);
+  });
+
+  it("skips the common filler words in either language", () => {
+    expect(tokenize("aku should banyak invoice")).toEqual(["invoice"]);
   });
 });
 

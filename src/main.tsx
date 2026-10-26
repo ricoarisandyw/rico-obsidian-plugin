@@ -276,7 +276,17 @@ export default class RicoObsidianPlugin extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType("canvas")) {
       const id = leafId(leaf);
       activeIds.add(id);
+      const existing = this.overlays.get(id);
+      // The leaf outlives its canvas DOM (opening another file in the same tab
+      // rebuilds it), so an overlay keyed only by leaf id can be left holding a
+      // detached wrapper. Drop it and attach to the live one.
+      if (existing && !existing.isAttachedToLiveCanvas()) {
+        console.log(">>> debug syncOverlays stale overlay, re-attaching", { id });
+        existing.detach();
+        this.overlays.delete(id);
+      }
       if (!this.overlays.has(id)) {
+        console.log(">>> debug syncOverlays attach", { id });
         const overlay = new CanvasDrawingOverlay(leaf, this.app, this);
         overlay.attach();
         this.overlays.set(id, overlay);

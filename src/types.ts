@@ -142,6 +142,10 @@ export interface RicoPluginSettings {
   semanticClusterExclude: string;
   /** Draw each group's name above its cloud. */
   semanticClusterShowLabels: boolean;
+  /** Keep notes that hold little beyond their title, such as unfinished drafts. */
+  semanticClusterIncludeEmpty: boolean;
+  /** Words the user never wants as group names or keywords, comma or line separated. */
+  semanticClusterStopwords: string;
   /** Gather this plugin's right-click items under one "Rico Plugin" parent. */
   groupContextMenu: boolean;
 }
@@ -246,6 +250,8 @@ export const DEFAULT_SETTINGS: RicoPluginSettings = {
   semanticClusterMinSize: 3,
   semanticClusterExclude: "",
   semanticClusterShowLabels: true,
+  semanticClusterIncludeEmpty: true,
+  semanticClusterStopwords: "",
   groupContextMenu: true,
 };
 

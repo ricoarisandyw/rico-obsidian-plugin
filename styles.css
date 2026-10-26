@@ -3270,6 +3270,44 @@
   opacity: 0.9;
 }
 
+/* The note a group is named after: a darker rim, set inline per hue, at full strength. */
+.rico-sc-dot.is-name {
+  opacity: 1;
+}
+
+.rico-sc-stopwords-hint,
+.rico-sc-stopwords-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.rico-sc-stopwords-input {
+  width: 100%;
+  resize: vertical;
+  margin-bottom: 12px;
+}
+
+.rico-sc-stopwords-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 12px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.rico-sc-stopwords-chip {
+  padding: 1px 8px;
+  height: auto;
+  font-size: var(--font-ui-small);
+  border-radius: 10px;
+}
+
+.rico-sc-stopwords-none {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+}
+
 .rico-sc-label {
   fill: var(--text-normal);
   font-weight: 600;

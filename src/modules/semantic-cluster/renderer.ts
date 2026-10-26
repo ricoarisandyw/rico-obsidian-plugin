@@ -136,7 +136,10 @@ export class ClusterRenderer {
       const centre = placed.get(cluster.id);
       if (!centre) continue;
       this.members.set(cluster.id, cluster.members);
-      const colour = `hsl(${clusterHue(cluster.id, count)} 60% 58%)`;
+      const hue = clusterHue(cluster.id, count);
+      const colour = `hsl(${hue} 60% 58%)`;
+      // The note a group is named after gets a rim of the same hue, darker.
+      const rim = `hsl(${hue} 65% 28%)`;
       const g = this.clustersEl.createSvg("g", { cls: "rico-sc-cluster" });
       g.setAttribute("data-cluster", String(cluster.id));
 
@@ -161,6 +164,11 @@ export class ClusterRenderer {
         dot.setAttribute("cy", String(spot.y));
         dot.setAttribute("r", String(DOT_RADIUS));
         dot.setAttribute("fill", colour);
+        if (point === cluster.namePath) {
+          dot.addClass("is-name");
+          dot.setAttribute("stroke", rim);
+          dot.setAttribute("stroke-width", String(DOT_RADIUS * 0.45));
+        }
         this.dotEls.set(point, dot);
 
         if (options.dotLabels) {

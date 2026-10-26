@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildExcluder,
   hasFolderNamed,
+  isEmptyNote,
   isUnderFolder,
   rootFolders,
 } from "../src/modules/semantic-cluster/exclude";
@@ -115,5 +116,25 @@ describe("buildExcluder", () => {
 
   it("does not leave out everything when the quiz folder name is blank", () => {
     expect(buildExcluder({ ...base, quizFolderName: "" })("Notes/a.md")).toBe(false);
+  });
+});
+
+describe("isEmptyNote", () => {
+  it("is empty when only the title is there", () => {
+    expect(isEmptyNote("Draft idea")).toBe(true);
+    expect(isEmptyNote("Draft idea\n\n")).toBe(true);
+  });
+
+  it("ignores frontmatter", () => {
+    expect(isEmptyNote("Draft\n\n---\ntags: [a]\ncreated: 2024-01-01\n---\n")).toBe(true);
+  });
+
+  it("is not empty once there is a real body", () => {
+    expect(isEmptyNote("Draft\n\nSome actual paragraph of writing here.")).toBe(false);
+  });
+
+  it("does not judge a note when the index kept no text", () => {
+    expect(isEmptyNote(undefined)).toBe(false);
+    expect(isEmptyNote("")).toBe(false);
   });
 });

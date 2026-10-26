@@ -102,6 +102,11 @@ export class DrawingToolbar {
 
   setVisible(visible: boolean): void {
     this.el.toggleClass("visible", visible);
+    console.log(">>> debug toolbar.setVisible", {
+      visible,
+      className: this.el.className,
+      connected: this.el.isConnected,
+    });
   }
 
   destroy(): void {

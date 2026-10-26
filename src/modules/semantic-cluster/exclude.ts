@@ -74,3 +74,22 @@ export function buildExcluder(settings: ExcludeSettings): (path: string) => bool
     return fragments.length > 0 && isExcluded(path, fragments);
   };
 }
+
+/** Body shorter than this, after the title and frontmatter, counts as an empty note. */
+const EMPTY_BODY_CHARS = 20;
+
+/**
+ * True for a note that holds little beyond its title: a draft nobody filled in.
+ *
+ * `text` is the indexed snippet, which starts with the note's title. When the
+ * index kept no snippet there is nothing to judge by, so the note is not called
+ * empty.
+ */
+export function isEmptyNote(text: string | undefined): boolean {
+  if (!text?.trim()) return false;
+  const body = text
+    .replace(/^[^\n]*\n?/, "")
+    .replace(/^\s*---\r?\n[\s\S]*?\r?\n---\s*(\r?\n|$)/, "")
+    .trim();
+  return body.length < EMPTY_BODY_CHARS;
+}

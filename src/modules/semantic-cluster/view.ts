@@ -1,7 +1,7 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf, setIcon } from "obsidian";
 import type { VectorStore } from "../semantic-search/store";
 import type { RicoPluginSettings } from "../../types";
-import type { ClusterMap, ClusterNote } from "./cluster-all";
+import { parseStopwords, type ClusterMap, type ClusterNote } from "./cluster-all";
 import {
   MIN_DRILL_SIZE,
   buildLevel,
@@ -12,9 +12,10 @@ import {
   truncateTo,
   type Level,
 } from "./drill";
-import { buildExcluder } from "./exclude";
+import { buildExcluder, isEmptyNote } from "./exclude";
 import { layoutClusters, type ClusterLayout } from "./layout";
 import { ClusterRenderer, type ViewTransform } from "./renderer";
+import { StopwordsModal } from "./stopwords-modal";
 
 export const SEMANTIC_CLUSTER_VIEW_TYPE = "rico-semantic-cluster";
 
@@ -183,6 +184,7 @@ export class SemanticClusterView extends ItemView {
     const actions = header.createDiv({ cls: "rico-sc-actions" });
     this.upEl = this.iconButton(actions, "arrow-left", "Up one level (Esc)", () => this.up());
     this.iconButton(actions, "refresh-cw", "Re-read the index and start again from the top", () => void this.run(true));
+    this.iconButton(actions, "ban", "Manage stopwords", () => this.openStopwords());
     this.iconButton(actions, "maximize", "Fit to panel", () => this.fit());
 
     // Where you are (clickable) on the left, how many groups to split into on the right.
@@ -416,6 +418,20 @@ export class SemanticClusterView extends ItemView {
     this.paint();
   }
 
+  /** Edit the words ignored when naming groups; saving clusters again with the new list. */
+  private openStopwords(): void {
+    const settings = this.deps.settings();
+    new StopwordsModal(this.app, {
+      current: parseStopwords(settings.semanticClusterStopwords),
+      detected: this.current?.map.autoStopwords ?? [],
+      save: async (words) => {
+        settings.semanticClusterStopwords = words.join(", ");
+        await this.deps.save();
+        void this.run(false);
+      },
+    }).open();
+  }
+
   // --- data ----------------------------------------------------------------
 
   /** What shapes the answer; when this is unchanged, earlier answers still hold. */
@@ -426,6 +442,8 @@ export class SemanticClusterView extends ItemView {
       kept.length,
       stamp,
       settings.semanticClusterMinSize,
+      settings.semanticClusterIncludeEmpty,
+      settings.semanticClusterStopwords,
       settings.semanticSearchExcludeFilter,
       settings.semanticClusterExclude,
       settings.noteToCanvasFolder,
@@ -439,7 +457,10 @@ export class SemanticClusterView extends ItemView {
       name,
       notes,
       requested,
-      { minSize: this.deps.settings().semanticClusterMinSize },
+      {
+        minSize: this.deps.settings().semanticClusterMinSize,
+        stopwords: parseStopwords(this.deps.settings().semanticClusterStopwords),
+      },
       this.deps.cache.maps,
     );
   }
@@ -456,7 +477,10 @@ export class SemanticClusterView extends ItemView {
 
       const entries = this.deps.store.all();
       const skip = buildExcluder(settings);
-      const kept = entries.filter((entry) => !skip(entry.path));
+      const kept = entries.filter(
+        (entry) =>
+          !skip(entry.path) && (settings.semanticClusterIncludeEmpty || !isEmptyNote(entry.text)),
+      );
       const excluded = entries.length - kept.length;
 
       if (!entries.length) {

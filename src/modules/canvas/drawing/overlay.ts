@@ -115,9 +115,7 @@ export class CanvasDrawingOverlay implements ToolbarHost {
   placeToggleBtn(): void {
     if (!this.wrapperEl) return;
     syncRail(this.wrapperEl);
-    const btn = this.wrapperEl.querySelector<HTMLButtonElement>(
-      ".rico-canvas-rail-btn-drawing"
-    );
+    const btn = this.findToggleBtn();
     if (btn) {
       this.toggleBtn = btn;
       // Only write when it changes: this runs from a MutationObserver handler.
@@ -127,18 +125,37 @@ export class CanvasDrawingOverlay implements ToolbarHost {
     }
   }
 
+  private findToggleBtn(): HTMLButtonElement | null {
+    return this.wrapperEl.querySelector<HTMLButtonElement>(".rico-canvas-rail-btn-drawing");
+  }
+
   genId(): string {
     return Math.random().toString(36).slice(2, 10);
   }
 
   // ---- Lifecycle ----------------------------------------------------
 
-  attach(): void {
+  /** The element the leaf's canvas currently lives in. */
+  private resolveWrapper(): HTMLElement {
     const containerEl = (this.leaf.view as unknown as { containerEl: HTMLElement }).containerEl;
-    this.wrapperEl =
+    return (
       containerEl.querySelector<HTMLElement>(".canvas-wrapper") ??
       containerEl.querySelector<HTMLElement>(".canvas") ??
-      containerEl;
+      containerEl
+    );
+  }
+
+  /**
+   * False once Obsidian has rebuilt the canvas DOM under this leaf (opening
+   * another file in the same tab does it): our toolbar and overlay would then
+   * sit in a detached wrapper where no click can reach them.
+   */
+  isAttachedToLiveCanvas(): boolean {
+    return !!this.wrapperEl && this.wrapperEl.isConnected && this.resolveWrapper() === this.wrapperEl;
+  }
+
+  attach(): void {
+    this.wrapperEl = this.resolveWrapper();
     overlaysByWrapper.set(this.wrapperEl, this);
 
     // The toggle lives on the shared left-edge rail. Registering is global and
@@ -150,9 +167,17 @@ export class CanvasDrawingOverlay implements ToolbarHost {
       order: 20,
       className: "rich-canvas-toggle-btn",
       onClick: (_e, btn) => {
-        const wrapper = btn.closest<HTMLElement>(".canvas-wrapper");
-        const target = wrapper ? overlayForWrapper(wrapper) : this;
-        (target ?? this).toggleDrawingMode();
+        // The spec is global and registered once, so this closure belongs to
+        // whichever canvas opened first. Resolve the overlay from the rail the
+        // button sits in; falling back to `this` would toggle the wrong canvas.
+        const wrapper = btn.closest<HTMLElement>(".rico-canvas-rail")?.parentElement;
+        const target = wrapper ? overlayForWrapper(wrapper) : undefined;
+        console.log(">>> debug rail click", {
+          wrapperFound: !!wrapper,
+          overlayFound: !!target,
+          sameAsRegistering: target === this,
+        });
+        target?.toggleDrawingMode();
       },
     });
     this.placeToggleBtn();
@@ -224,7 +249,16 @@ export class CanvasDrawingOverlay implements ToolbarHost {
 
   toggleDrawingMode(): void {
     this.drawingMode = !this.drawingMode;
-    this.toggleBtn.classList.toggle("active", this.drawingMode);
+    console.log(">>> debug toggleDrawingMode", {
+      drawingMode: this.drawingMode,
+      hasToggleBtn: !!this.toggleBtn,
+      wrapperConnected: this.wrapperEl.isConnected,
+      toolbarConnected: this.toolbar.el.isConnected,
+    });
+    // The rail can be rebuilt after attach(), so the button found back then may
+    // be missing or stale. Never let that stop the toolbar from showing.
+    this.toggleBtn = this.findToggleBtn() ?? this.toggleBtn;
+    this.toggleBtn?.classList.toggle("active", this.drawingMode);
     this.toolbar.setVisible(this.drawingMode);
 
     const containerEl = (this.leaf.view as unknown as { containerEl: HTMLElement }).containerEl;
@@ -493,13 +527,18 @@ export class CanvasDrawingOverlay implements ToolbarHost {
 
     this.isDrawing = true;
     this.startDrag();
+    console.log(">>> debug onMouseDown", {
+      tool: this.tool,
+      scale: this.getCamera().scale,
+      chosenWidth: this.lineWidth,
+    });
     this.currentShape = {
       id: this.genId(),
       type: this.tool as ShapeType,
       color: this.color,
-      // Stored in world units so the stroke zooms with the canvas. Converting
-      // at capture keeps it the chosen on-screen width at the current zoom.
-      lineWidth: this.lineWidth / Math.max(this.getCamera().scale, 1e-6),
+      // Stored in world units, so "5" is 5 canvas units at any zoom. Strokes
+      // then match each other and scale with the canvas like ink on it.
+      lineWidth: this.lineWidth,
       points: this.tool === "pencil" ? [world] : [world, world],
     };
     this.render();

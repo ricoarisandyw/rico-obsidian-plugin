@@ -32,9 +32,11 @@ export interface Cluster {
   members: string[];
   /** Unit vector at the middle of the group. */
   centroid: Float64Array;
-  /** Title of the note closest to the centre. */
+  /** Title of the note that best represents the group; see `pickName`. */
   name: string;
-  /** A few words that set this group apart from the rest. Empty without snippets. */
+  /** Path of the note the name came from; null when it came from a folder or a placeholder. */
+  namePath: string | null;
+  /** The words that set this group apart from the rest. Empty without snippets. */
   subtitle: string;
 }
 
@@ -52,6 +54,8 @@ export interface ClusterMap {
   of: Map<string, number>;
   /** Notes with no usable vector, left out of every group. */
   unusable: number;
+  /** Words dropped as keywords because most groups use them; commonest first. */
+  autoStopwords: string[];
 }
 
 export interface ClusterOptions {
@@ -61,13 +65,23 @@ export interface ClusterOptions {
   minSize?: number;
   /** Nearest groups each group links to. */
   linksPerCluster?: number;
+  /** Extra words to ignore when naming groups, on top of the built-in and detected ones. */
+  stopwords?: string[];
 }
 
 const MIN_AUTO_K = 4;
 const MAX_AUTO_K = 40;
 const DEFAULT_MIN_SIZE = 3;
 const DEFAULT_LINKS = 2;
-const SUBTITLE_WORDS = 3;
+const SUBTITLE_WORDS = 5;
+/** A word used in at least this share of the groups says nothing about any one of them. */
+const COMMON_SHARE = 0.5;
+/** Fewer groups than this and a share of them means too little to act on. */
+const MIN_GROUPS_FOR_COMMON = 4;
+/** Detected words listed for the user to review. */
+const MAX_AUTO_STOPWORDS = 40;
+/** How many of the notes nearest the centre compete to name the group. */
+const NAME_CANDIDATES = 5;
 
 /**
  * How many groups a vault of `noteCount` notes should split into.
@@ -91,41 +105,70 @@ const STOPWORDS = new Set(
     "been being also more some such only other about over just like very any each use used using " +
     "yang dan di ke dari untuk dengan pada ini itu atau juga akan sudah adalah dalam tidak bisa " +
     "ada oleh karena saya kita kami mereka anda sebagai lebih agar jika kalau saat para hanya " +
+    "aku kamu dia banyak tentang cara should could might must shall may " +
+    "readme index untitled notes note todo draft home catatan judul " +
     "http https www com md png jpg"
   ).split(" "),
 );
 
 /** Lowercase words of three letters or more, with numbers and stopwords dropped. */
-export function tokenize(text: string): string[] {
+export function tokenize(text: string, extra?: ReadonlySet<string>): string[] {
   const words = text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
-  return words.filter((word) => !STOPWORDS.has(word) && !/^\p{N}+$/u.test(word));
+  return words.filter(
+    (word) => !STOPWORDS.has(word) && !extra?.has(word) && !/^\p{N}+$/u.test(word),
+  );
+}
+
+/** Split a comma, space or line separated list into lowercase, de-duplicated words. */
+export function parseStopwords(raw: string | undefined): string[] {
+  const words = (raw ?? "").toLowerCase().split(/[\s,;]+/).filter(Boolean);
+  return [...new Set(words)];
 }
 
 /**
- * The words most particular to each group.
+ * The words most particular to each group, and the words dropped for being everywhere.
  *
  * A word scores by how often the group uses it, scaled down by how many other
- * groups use it too, so "meeting" in every group loses to "hvac" in one.
+ * groups use it too, so "meeting" in every group loses to "hvac" in one. That
+ * only turns the volume down: a filler word a group repeats a lot can still win.
+ * So a word that most groups use repeatedly is treated as a stopword outright.
+ * It holds in any language, because it is judged on how the words are spread,
+ * not on a list.
  */
-function distinctiveWords(texts: string[][], perCluster: number): string[][] {
+function distinctiveWords(
+  texts: string[][],
+  perCluster: number,
+  extra: ReadonlySet<string>,
+): { words: string[][]; common: string[] } {
   const counts = texts.map((snippets) => {
     const tally = new Map<string, number>();
     for (const snippet of snippets) {
-      for (const word of tokenize(snippet)) tally.set(word, (tally.get(word) ?? 0) + 1);
+      for (const word of tokenize(snippet, extra)) tally.set(word, (tally.get(word) ?? 0) + 1);
     }
     return tally;
   });
 
   const spread = new Map<string, number>();
+  const repeated = new Map<string, number>();
+  const uses = new Map<string, number>();
   for (const tally of counts) {
-    for (const word of tally.keys()) spread.set(word, (spread.get(word) ?? 0) + 1);
+    for (const [word, count] of tally) {
+      spread.set(word, (spread.get(word) ?? 0) + 1);
+      uses.set(word, (uses.get(word) ?? 0) + count);
+      if (count > 1) repeated.set(word, (repeated.get(word) ?? 0) + 1);
+    }
   }
 
   const total = Math.max(1, counts.length);
-  return counts.map((tally) =>
+  const common = new Set<string>();
+  if (total >= MIN_GROUPS_FOR_COMMON) {
+    for (const [word, groups] of repeated) if (groups / total >= COMMON_SHARE) common.add(word);
+  }
+
+  const words = counts.map((tally) =>
     [...tally.entries()]
       // Words seen once are noise at this scale.
-      .filter(([, count]) => count > 1)
+      .filter(([word, count]) => count > 1 && !common.has(word))
       .map(([word, count]) => ({
         word,
         score: count * Math.log(1 + total / (spread.get(word) ?? 1)),
@@ -134,6 +177,63 @@ function distinctiveWords(texts: string[][], perCluster: number): string[][] {
       .slice(0, perCluster)
       .map((entry) => entry.word),
   );
+
+  const dropped = [...common]
+    .sort((a, b) => (uses.get(b) ?? 0) - (uses.get(a) ?? 0) || (a < b ? -1 : 1))
+    .slice(0, MAX_AUTO_STOPWORDS);
+  return { words, common: dropped };
+}
+
+/** Name of the folder a note sits in, or "" at the vault root. */
+function folderOf(path: string): string {
+  const parts = path.split("/");
+  return parts.length > 1 ? parts[parts.length - 2] : "";
+}
+
+/**
+ * The name a group is shown under.
+ *
+ * The note nearest the centre is often a bad pick: a README or an index says
+ * little about any topic, so it sits near every centre. Instead the few notes
+ * nearest the centre compete on how many of the group's own keywords appear in
+ * their title or folder name, and the best match wins. A tie goes to the note
+ * nearer the centre, so the answer depends only on the data.
+ *
+ * When nothing matches and the nearest note's title is generic (README, a bare
+ * date), its folder names the group instead. Failing that, the nearest note.
+ *
+ * `paths` is ordered nearest the centre first.
+ */
+function pickName(
+  paths: string[],
+  keywords: string[],
+  id: number,
+  extra: ReadonlySet<string>,
+): { name: string; path: string | null } {
+  if (!paths.length) return { name: `Group ${id + 1}`, path: null };
+
+  const wanted = new Set(keywords);
+  let best = 0;
+  let bestScore = 0;
+  paths.slice(0, NAME_CANDIDATES).forEach((path, i) => {
+    const hits = new Set(
+      [...tokenize(labelFor(path), extra), ...tokenize(folderOf(path), extra)].filter((word) =>
+        wanted.has(word),
+      ),
+    );
+    if (hits.size > bestScore) {
+      best = i;
+      bestScore = hits.size;
+    }
+  });
+  if (bestScore > 0) return { name: labelFor(paths[best]), path: paths[best] };
+
+  const nearest = paths[0];
+  if (tokenize(labelFor(nearest), extra).length === 0) {
+    const folder = folderOf(nearest);
+    if (tokenize(folder, extra).length > 0) return { name: folder, path: null };
+  }
+  return { name: labelFor(nearest), path: nearest };
 }
 
 /**
@@ -231,18 +331,25 @@ export function buildClusterMap(
       .map((entry) => entry.i);
   });
 
-  const words = distinctiveWords(
+  const extra = new Set((options.stopwords ?? []).map((word) => word.toLowerCase()));
+  const { words, common } = distinctiveWords(
     ordered.map((indexes) => indexes.map((i) => notes[i].text ?? "")),
     SUBTITLE_WORDS,
+    extra,
   );
 
-  const clusters: Cluster[] = ordered.map((indexes, id) => ({
-    id,
-    members: indexes.map((i) => notes[i].path),
-    centroid: centres[id] ?? new Float64Array(0),
-    name: indexes.length ? labelFor(notes[indexes[0]].path) : `Group ${id + 1}`,
-    subtitle: words[id].join(" · "),
-  }));
+  const clusters: Cluster[] = ordered.map((indexes, id) => {
+    const members = indexes.map((i) => notes[i].path);
+    const named = pickName(members, words[id], id, extra);
+    return {
+      id,
+      members,
+      centroid: centres[id] ?? new Float64Array(0),
+      name: named.name,
+      namePath: named.path,
+      subtitle: words[id].join(" · "),
+    };
+  });
 
   const of = new Map<string, number>();
   final.forEach((id, i) => {
@@ -254,6 +361,7 @@ export function buildClusterMap(
     links: nearestLinks(clusters, linksPer),
     of,
     unusable: final.filter((id) => id < 0).length,
+    autoStopwords: common,
   };
 }
 

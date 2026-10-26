@@ -138,6 +138,45 @@ describe("Canvas Drawing Mode Suite", () => {
       expect(overlay.overlayCanvas.style.pointerEvents).toBe("");
     });
 
+    it("should still show the toolbar when the toggle button was never found", () => {
+      // attach() can run before the rail exists, leaving toggleBtn unset.
+      (overlay as any).toggleBtn = undefined;
+      overlay.wrapperEl.querySelector(".rico-canvas-rail")?.remove();
+
+      expect(() => overlay.toggleDrawingMode()).not.toThrow();
+      expect(overlay.drawingMode).toBe(true);
+      expect(overlay.toolbar.el.classList.contains("visible")).toBe(true);
+    });
+
+    it("should toggle the overlay of the clicked canvas via its rail button", () => {
+      const btn = overlay.wrapperEl.querySelector<HTMLElement>(".rico-canvas-rail-btn-drawing")!;
+      btn.click();
+      expect(overlay.drawingMode).toBe(true);
+      expect(overlay.toolbar.el.classList.contains("visible")).toBe(true);
+    });
+
+    it("should not toggle another canvas when a rail without an overlay is clicked", () => {
+      const other = document.createElement("div");
+      other.className = "canvas-wrapper";
+      document.body.appendChild(other);
+      syncRail(other);
+
+      other.querySelector<HTMLElement>(".rico-canvas-rail-btn-drawing")!.click();
+      expect(overlay.drawingMode).toBe(false);
+      other.remove();
+    });
+
+    it("should report a stale overlay once the canvas DOM is rebuilt", () => {
+      expect(overlay.isAttachedToLiveCanvas()).toBe(true);
+
+      const rebuilt = document.createElement("div");
+      rebuilt.className = "canvas-wrapper";
+      containerEl.appendChild(rebuilt);
+
+      expect(overlay.isAttachedToLiveCanvas()).toBe(false);
+      rebuilt.remove();
+    });
+
     it("should not re-enable pointer events on keyup after drawing mode is off", () => {
       overlay.toggleDrawingMode();
       overlay.onKeyDown({ code: "Space", repeat: false } as KeyboardEvent);
@@ -171,19 +210,16 @@ describe("Canvas Drawing Mode Suite", () => {
       expect(back.sy).toBe(250);
     });
 
-    it("should store stroke width in world units so it zooms with the canvas", () => {
+    it("should store the chosen width unchanged whatever the zoom", () => {
       overlay.toggleDrawingMode();
-      overlay.lineWidth = 4;
+      overlay.lineWidth = 5;
 
-      // Zoomed out to 50%: a 4px on-screen stroke is 8 world units.
-      overlay.getCamera = () => ({ x: 0, y: 0, scale: 0.5 });
-      stroke(overlay, [[0, 0], [20, 20], [40, 40]]);
-      expect(overlay.shapes[0].lineWidth).toBeCloseTo(8);
+      for (const scale of [0.5, 1, 2]) {
+        overlay.getCamera = () => ({ x: 0, y: 0, scale });
+        stroke(overlay, [[0, 0], [20, 20], [40, 40]]);
+      }
 
-      // Zoomed in to 200%: the same 4px is only 2 world units.
-      overlay.getCamera = () => ({ x: 0, y: 0, scale: 2 });
-      stroke(overlay, [[0, 0], [20, 20], [40, 40]]);
-      expect(overlay.shapes[1].lineWidth).toBeCloseTo(2);
+      expect(overlay.shapes.map((s) => s.lineWidth)).toEqual([5, 5, 5]);
     });
 
     it("should render a stroke thinner as the camera zooms out", () => {

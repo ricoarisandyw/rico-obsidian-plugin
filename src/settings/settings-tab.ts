@@ -521,6 +521,14 @@ export class RicoSettingTab extends PluginSettingTab {
       desc: "Draw each group's name above its cloud once you zoom in far enough to read it.",
     });
 
+    this.toggle(containerEl, {
+      key: "semanticClusterIncludeEmpty",
+      name: "Include empty notes",
+      desc:
+        "Keep notes that hold little beyond their title, such as drafts you have not filled in yet. " +
+        "They are grouped by title alone. Turn off to leave them out of the map.",
+    });
+
     new Setting(containerEl)
       .setName("Smallest group")
       .setDesc("A group with fewer notes than this is merged into the group nearest to it (default 3).")

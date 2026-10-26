@@ -64,7 +64,7 @@ export async function buildLevel(
   name: string,
   notes: ClusterNote[],
   requested: number,
-  options: Pick<ClusterOptions, "minSize"> = {},
+  options: Pick<ClusterOptions, "minSize" | "stopwords"> = {},
   cache?: Map<string, ClusterMap>,
 ): Promise<Level> {
   const wanted = Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : 0;
@@ -72,7 +72,11 @@ export async function buildLevel(
 
   let map = cache?.get(key);
   if (!map) {
-    map = await clusterVaultAsync(notes, { k: wanted, minSize: options.minSize });
+    map = await clusterVaultAsync(notes, {
+      k: wanted,
+      minSize: options.minSize,
+      stopwords: options.stopwords,
+    });
     cache?.set(key, map);
   }
   return { name, notes, requested: wanted, map };
